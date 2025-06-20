@@ -13,14 +13,10 @@ This simulator was made using Python, having an interface in Java. It was develo
 
 > Currently, the simulator has been used to design the nozzle geometry for a **hybrid rocket** using mainly **paraffin wax** as fuel and **N₂O** as oxidizer to compete at EuRock 2025 with Porto Space Team.
 
----
 
-### Top contributors:
+### Author:
 
-<a href="https://github.com/PortoSpaceTeamNI/Nozzle-Geometry-Simulator/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=PortoSpaceTeamNI/Nozzle-Geometry-Simulator" />
-</a>
-
+-[Rafael Lino](https://github.com/rafaelino1707)
 
 ---
 ## 2D Geometry Plot
