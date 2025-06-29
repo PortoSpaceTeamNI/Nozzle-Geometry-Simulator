@@ -124,7 +124,7 @@ def plot_combined(OF1, OF2, OF3, Pc, exp):
 def start_gui():
     global root
     root = tk.Tk()
-    root.title("Nozzle Expansion Ratio Analysis")
+    root.title("Nozzle Exhaust Parameters Analysis")
     root.geometry("400x350")
 
     # Labels e Inputs
