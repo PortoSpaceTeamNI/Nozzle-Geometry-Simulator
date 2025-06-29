@@ -341,22 +341,7 @@ for i, (text, default) in enumerate(labels):
 
 entry_rt, entry_exp, entry_halfangle, entry_theta_in, entry_theta_sub, entry_Rchamber, entry_bell_contour = entries
 
-import time
 
-# Debounce
-last_update_time = 0
-debounce_delay = 500 
-scheduled_update_id = None
-
-def on_input_change(event=None):
-    global last_update_time, scheduled_update_id
-    now = time.time() * 1000  # Em ms
-    if scheduled_update_id:
-        root.after_cancel(scheduled_update_id)
-    scheduled_update_id = root.after(debounce_delay, lambda: run_simulation('2d'))
-
-for entry in entries:
-    entry.bind('<KeyRelease>', on_input_change)
     
 ttk.Button(frame, text="Plot 2D", command=lambda: run_simulation('2d')).grid(row=30, column=0)
 ttk.Button(frame, text="Single 3D Plot", command=lambda: run_simulation('3ds')).grid(row=30, column=1)
@@ -374,6 +359,3 @@ warning_label.grid(row=1, column=0, pady=10)
 
 root.mainloop()
 
-
-### MELHORAS 
-# Equacoes Parabola e Arco para Funcao
