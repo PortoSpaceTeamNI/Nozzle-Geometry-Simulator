@@ -120,7 +120,7 @@ def plot_thrust(P1, P2, P3, OF, expansion_ratio, rt):
 def start_gui():
     global root
     root = tk.Tk()
-    root.title("Nozzle Expansion Ratio Analysis")
+    root.title("Nozzle Thrust Generation Analysis")
     root.geometry("400x350")
 
     # Labels e Inputs
