@@ -18,6 +18,10 @@ This simulator was made using Python, having an interface in Java. It was develo
 
 -[Rafael Lino](https://github.com/rafaelino1707)
 
+### Motivation
+
+The nozzle plays a critical role in rocket engine performance, as it governs the conversion of thermal energy into directed kinetic energy. Due to the limited availability of customizable nozzle geometry simulators, this tool was developed to enable tailored design analysis. It incorporates advanced features not commonly found in standard simulators, such as three-dimensional contour visualization and direct export of discretized profile coordinates for integration with CAD and 3D modeling software.
+
 ---
 ## 2D Geometry Plot
 
