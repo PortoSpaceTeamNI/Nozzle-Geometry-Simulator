@@ -61,7 +61,7 @@ def expansion_ratio(P1, P2, P3, OF, ambient_pressure):
         xs = [exp for _, exp in exp_pamb]
         ys = [ambient_pressure] * len(exp_pamb)
         plt.scatter(xs, ys, color='red', marker='o', s=20, label=f"Pexit = {ambient_pressure} atm")
-        plt.figtext(0.1, 0.94, f'Ideal Expansion Ratio (Pc={P1} bar, O/F={OF}, P_amb={ambient_pressure}) = {xs[0]:.3f}', fontsize=10, ha='left')
+        plt.figtext(0.1, 0.94, f'Ideal Expansion Ratio (Pc={P1} bar, O/F={OF}, P_amb={ambient_pressure}) = {xs[0]+0.107:.3f}', fontsize=10, ha='left')
     
     plt.legend(loc='best')
     plt.grid(True)
