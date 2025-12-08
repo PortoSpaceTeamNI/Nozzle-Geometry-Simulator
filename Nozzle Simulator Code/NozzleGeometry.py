@@ -3,6 +3,18 @@ from tkinter import ttk
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+from scipy.optimize import fsolve
+from rocketcea.cea_obj import CEA_Obj
+from rocketcea.cea_obj import CEA_Obj, add_new_fuel
+
+# Adding new fuel
+card_str = """
+fuel C30H62  C 30 H 62  wt%=83.00
+h,cal=-158348.0  t(k)=298.15  rho=0.775
+"""
+
+add_new_fuel('Paraffin', card_str)
+C = CEA_Obj(propName='', oxName='N2O', fuelName='Paraffin')
 
 # Create main window
 root = tk.Tk()
@@ -12,6 +24,9 @@ root.title("Nozzle Profile Generator")
 def run_simulation(mode):
     try:
         # User Inputs
+        Tc = float(entry_Tc.get())
+        Pc = float(entry_Pc.get())
+        MR = float(entry_MR.get())
         rt = float(entry_rt.get())
         exp = float(entry_exp.get())
         halfangle = math.radians(float(entry_halfangle.get()))
@@ -79,6 +94,68 @@ def run_simulation(mode):
             f"Max y Value: {np.max(y_vals)} \n"
             f"Exit Radius: {re}", fg="red")
             return
+        
+        # Calculating the mach curve
+        mw, gamma = C.get_Chamber_MolWt_gamma(Pc=Pc, MR=MR)
+
+        def find_y_from_x(x):
+            # SUPPRESSED: x coordinate is already translated. 
+            # You MUST use the same geometry conditions used earlier in the nozzle profile.
+
+            # supersonic parabola region
+            if x >= (Px + translation_x):
+                y = a * (x - translation_x)**2 + b_parab * (x - translation_x) + c
+
+            # supersonic arc
+            elif x < (Px + translation_x) and x >= translation_x:
+                # compute y on the arc
+                # parameter t corresponds to angle_vals indexing
+                y = 1.4*rt - math.sqrt((0.4*rt)**2 - (x-translation_x)**2)
+
+            # subsonic arc
+            elif x < translation_x and x >= (xr + translation_x):
+                y = 2.5*rt - math.sqrt(2.25*rt**2 - (x-translation_x)**2)
+
+            # subsonic line
+            else:
+                y = m*(x-translation_x) + b
+
+            return float(y)
+
+        
+        def find_mach(x):
+            y = find_y_from_x(x)
+
+            target = (y / rt)**2
+
+            def func(Ma):
+                return (1/Ma) * (2/(gamma+1)*(1+(gamma-1)/2*Ma**2))**((gamma+1)/(2*(gamma-1))) - target
+            if x >= translation_x:
+                Ma_guess = 2.0
+            if x < translation_x:
+                Ma_guess = 0.2
+            Mach = fsolve(func, Ma_guess)[0]
+            return float(Mach)
+        
+        def find_temp(Ma):
+
+            target = Tc/(1+(gamma-1)/2 * Ma**2)
+
+            def func(T):
+                return T - target
+            T_guess = 2000
+            Ta = fsolve(func, T_guess)[0]
+            return float(Ta)
+        
+        def find_pres(Ma):
+
+            target = Pc * (1/(1+(gamma-1)/2 * Ma**2))**(gamma/(gamma-1))
+
+            def func(P):
+                return P - target
+            P_guess = 30
+            Pa = fsolve(func, P_guess)[0]
+            return float(Pa)
 
         # Smoothed subsonic arc
         def arc_sub(x):
@@ -234,6 +311,9 @@ def run_simulation(mode):
             # Combining Each Points List
             x_combined = [xs1, xs0, arc_x, x_vals]
             y_combined = [ys1, ys0, arc_y, y_vals]
+            Ma_combined = [Mas1, Mas0, Ma_arc, Ma_vals]
+            Ta_combined = [Tas1, Tas0, Ta_arc, Ta_vals]
+            Pa_combined = [Pas1, Pas0, Pa_arc, Pa_vals]
             total_points = 100  # ou outro valor que preferires
 
             # Distributing the Points Equally
@@ -242,8 +322,11 @@ def run_simulation(mode):
 
             x_raw = []
             y_raw = []
+            Ma_raw = []
+            Ta_raw = []
+            Pa_raw = []
 
-            for x_seg, y_seg, seg_len in zip(x_combined, y_combined, lengths):
+            for x_seg, y_seg, Ma_seg, Ta_seg, Pa_seg, seg_len in zip(x_combined, y_combined, Ma_combined, Ta_combined, Pa_combined, lengths):
                 # Creating Step and Deffining a Minimum Step (=2)
                 n_points = max(2, int((seg_len / total_len) * total_points))
                 # Creating index (int) Equally Spaced
@@ -251,6 +334,9 @@ def run_simulation(mode):
 
                 x_raw.extend([x_seg[i] for i in indices])
                 y_raw.extend([y_seg[i] for i in indices])
+                Ma_raw.extend([Ma_seg[i] for i in indices])
+                Ta_raw.extend([Ta_seg[i] for i in indices])
+                Pa_raw.extend([Pa_seg[i] for i in indices])
 
             # Minimum Distance in mm
             min_dist_mm = 1
@@ -260,37 +346,54 @@ def run_simulation(mode):
                 # If There's Points, the First Points is Always Accepted and Added to the Filtered List
                 x_filtered = [x_raw[0]]
                 y_filtered = [y_raw[0]]
+                Ma_filtered = [Ma_raw[0]]
+                Ta_filtered = [Ta_raw[0]]
+                Pa_filtered = [Pa_raw[0]]
                 last_x = x_raw[0]
                 last_y = y_raw[0]
+                last_Ma = Ma_raw[0]
+                last_Ta = Ta_raw[0]
+                last_Pa = Pa_raw[0]
 
                 # To Filter the Rest of the Points, a the Rest of the Points are Filtered (Expect the First Points, Already Accepted)
-                for xi, yi in zip(x_raw[1:], y_raw[1:]):
+                for xi, yi, Mai, Tai, Pai in zip(x_raw[1:], y_raw[1:], Ma_raw[1:], Ta_raw[1:], Pa_raw[1:]):
                     # Getting the Distance Between the Actual Point and the Last Point
-                    dist = math.hypot((xi - last_x) * 1000, (yi - last_y) * 1000) 
+                    dist = math.hypot((xi - last_x) * 1000, (yi - last_y) * 1000, (Mai - last_Ma) * 1000, (Tai - last_Ta) * 1000, (Pai - last_Pa) * 1000) 
                     if dist >= min_dist_mm:
                         # If the Distance is Bigger than the Minimum Distance the Point is Added and the Last Point is Updated
                         x_filtered.append(xi)
                         y_filtered.append(yi)
+                        Ma_filtered.append(Mai)
+                        Ta_filtered.append(Tai)
+                        Pa_filtered.append(Pai)
                         last_x = xi
                         last_y = yi
+                        last_Ma = Mai
+                        last_Ta = Tai
+                        last_Pa = Pai
 
                 x_final = x_filtered
                 y_final = y_filtered
+                Ma_final = Ma_filtered
+                Ta_final = Ta_filtered
+                Pa_final = Pa_filtered
 
             # Ensuring the Last Point is Correct (Lfinal, re)
-            if x_final[-1] != Lfinal or y_final[-1] != re:
+            if x_final[-1] != Lfinal or y_final[-1] != re or Ma_final[-1] != find_mach(Lfinal) or Ta_final[-1] != find_temp(Ma_final) or Pa_final[-1] != find_pres(Ma_final):
                 x_final[-1] = round(Lfinal + translation_x, 4)
                 y_final[-1] = round(re, 4)
+                Ma_final[-1] = round(find_mach(x_final[-1]), 4)
+                Ta_final[-1] = round(find_temp(Ma_final[-1]), 4)
+                Pa_final[-1] = round(find_pres(Ma_final[-1]), 4)
 
             # Converting m to mm
             x_final_mm = [x * 1000 for x in x_final]
             y_final_mm = [y * 1000 for y in y_final]
 
             # Zipping and Sorting the Points
-            combined = list(zip(x_final_mm, y_final_mm))
-            combined.sort()
-
-            x_final_sorted, y_final_sorted = zip(*combined)
+            combined = list(zip(x_final_mm, y_final_mm, Ma_final, Ta_final, Pa_final))
+            combined.sort()  # sorts by x automatically
+            x_final_sorted, y_final_sorted, Ma_final_sorted, Ta_final_sorted, Pa_final_sorted = zip(*combined)
 
             try:
                 with open("nozzle_geometry.csv", "w") as file:
@@ -302,6 +405,83 @@ def run_simulation(mode):
                 lbl_result.config(text=f"Erro: {str(e)}", foreground="red")
 
 
+            try:
+                with open("mach_temp_pres_profile.csv", "w") as f:
+                    f.write("x_mm,Ma,T,P\n")
+                    for x, Ma, T, P in zip(x_final_sorted, Ma_final_sorted, Ta_final_sorted, Pa_final_sorted):
+                        f.write(f"{x:.2f},{Ma:.4f},{T:.6f},{P:.8f}\n")
+                lbl_result.config(text="CSV Updated Successfully!", foreground="chartreuse4")
+            except Exception as e:
+                lbl_result.config(text=f"Erro: {str(e)}", foreground="red")
+
+        xs0 = np.array(xs0)
+        Mas0 = np.array([find_mach(x) for x in xs0])
+        Tas0 = np.array([find_temp(Ma) for Ma in Mas0])
+        Pas0 = np.array([find_pres(Ma) for Ma in Mas0])
+        xs1 = np.array(xs1)
+        Mas1 = np.array([find_mach(x) for x in xs1])
+        Tas1 = np.array([find_temp(Ma) for Ma in Mas1])
+        Pas1 = np.array([find_pres(Ma) for Ma in Mas1])
+        arc_x = np.array(arc_x)
+        Ma_arc = np.array([find_mach(x) for x in arc_x])
+        Ta_arc = np.array([find_temp(Ma) for Ma in Ma_arc])
+        Pa_arc = np.array([find_pres(Ma) for Ma in Ma_arc])
+        x_vals = np.array(x_vals)
+        Ma_vals = np.array([find_mach(x) for x in x_vals])
+        Ta_vals = np.array([find_temp(Ma) for Ma in Ma_vals])
+        Pa_vals = np.array([find_pres(Ma) for Ma in Ma_vals])
+
+
+        def plot_Mach():
+            plt.figure(figsize=(10, 6))
+            plt.plot(xs0, Mas0, 'r--', label="Initial Straight Line")
+            plt.plot(xs1, Mas1, 'b', label="Subsonic Arc")
+            plt.plot(arc_x, Ma_arc, 'g', label='Supersonic Arc')
+            plt.plot(x_vals, Ma_vals, 'k', label='Parabolic Contour')
+            plt.title('Mach Curve', pad=30)
+            plt.figtext(0.8, 0.94, f'Starting Mach = {find_mach(0):.3f}', fontsize=10, ha='left')
+            plt.figtext(0.8, 0.91, f'Exit Mach = {find_mach(x_vals[-1]):.3f}', fontsize=10, ha='left')
+            plt.figtext(0.08, 0.94, f'Choking Point = {translation_x:.3f} m', fontsize=10, ha='left')
+            plt.xlabel('x (m)')
+            plt.ylabel('Ma')
+            plt.grid()
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+        
+        def plot_Temp():
+            plt.figure(figsize=(10, 6))
+            plt.plot(xs0, Tas0, 'r--', label="Initial Straight Line")
+            plt.plot(xs1, Tas1, 'b', label="Subsonic Arc")
+            plt.plot(arc_x, Ta_arc, 'g', label='Supersonic Arc')
+            plt.plot(x_vals, Ta_vals, 'k', label='Parabolic Contour')
+            plt.title('Temperature Profile', pad=30)
+            plt.figtext(0.68, 0.94, f'Main Chamber Temperature = {find_temp(0):.3f} K', fontsize=10, ha='left')
+            plt.figtext(0.68, 0.91, f'Exit Temperature = {find_temp(Ma_vals[-1]):.3f} K', fontsize=10, ha='left')
+            plt.figtext(0.08, 0.94, f'Temperature At Choking Point = {find_temp(find_mach(translation_x)):.3f} K', fontsize=10, ha='left')
+            plt.xlabel('x (m)')
+            plt.ylabel('T (K)')
+            plt.grid()
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+        
+        def plot_Pres():
+            plt.figure(figsize=(10, 6))
+            plt.plot(xs0, Pas0, 'r--', label="Initial Straight Line")
+            plt.plot(xs1, Pas1, 'b', label="Subsonic Arc")
+            plt.plot(arc_x, Pa_arc, 'g', label='Supersonic Arc')
+            plt.plot(x_vals, Pa_vals, 'k', label='Parabolic Contour')
+            plt.title('Pressure Profile', pad=30)
+            plt.figtext(0.7, 0.94, f'Main Chamber Pressure = {find_pres(0):.3f} bar', fontsize=10, ha='left')
+            plt.figtext(0.7, 0.91, f'Exit Pressure = {find_pres(Ma_vals[-1]):.3f} bar', fontsize=10, ha='left')
+            plt.figtext(0.08, 0.94, f'Pressure At Choking Point = {find_pres(find_mach(translation_x)):.3f} bar', fontsize=10, ha='left')
+            plt.xlabel('x (m)')
+            plt.ylabel('P (bar)')
+            plt.grid()
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
 
 
         if mode == '2d':
@@ -312,6 +492,12 @@ def run_simulation(mode):
             plot3d_single()
         elif mode == 'csv':
             update_csv()
+        elif mode == 'Mach':
+            plot_Mach()
+        elif mode == 'Temp':
+            plot_Temp()
+        elif mode == 'Pres':
+            plot_Pres()
 
     except Exception as e:
         lbl_result.config(text=f"Error: {str(e)}")
@@ -322,6 +508,9 @@ frame = ttk.Frame(root, padding=10)
 frame.grid(row=0, column=0)
 
 labels = [
+    ("Combustion chamber temperature (K):", "3000"),
+    ("Combustion chamber pressure (bar):", "50"),
+    ("Mixture ratio (O/F):", "6.5"),
     ("Throat Radius (m):", "0.01548"),
     ("Expansion Ratio:", "5"),
     ("Reference Conical Nozzle Angle (deg):", "15"),
@@ -339,7 +528,7 @@ for i, (text, default) in enumerate(labels):
     e.grid(row=i, column=1)
     entries.append(e)
 
-entry_rt, entry_exp, entry_halfangle, entry_theta_in, entry_theta_sub, entry_Rchamber, entry_bell_contour = entries
+entry_Tc, entry_Pc, entry_MR, entry_rt, entry_exp, entry_halfangle, entry_theta_in, entry_theta_sub, entry_Rchamber, entry_bell_contour = entries
 
 
     
@@ -347,6 +536,9 @@ ttk.Button(frame, text="Plot 2D", command=lambda: run_simulation('2d')).grid(row
 ttk.Button(frame, text="Single 3D Plot", command=lambda: run_simulation('3ds')).grid(row=30, column=1)
 ttk.Button(frame, text="4 Views 3D Plot", command=lambda: run_simulation('3dm')).grid(row=31, column=0, columnspan=2, pady=5)
 ttk.Button(frame, text="Update CSV", command=lambda: run_simulation('csv')).grid(row=32, columnspan=2)
+ttk.Button(frame, text="Mach Curve", command=lambda: run_simulation('Mach')).grid(row=34, column=0, sticky="w", padx=45)
+ttk.Button(frame, text="Temperature Profile", command=lambda: run_simulation('Temp')).grid(row=34 , column=1)
+ttk.Button(frame, text="Pressure Profile", command=lambda: run_simulation('Pres')).grid(row=34 , columnspan=2)
 
 lbl_result = ttk.Label(frame, text="")
 lbl_result.grid(row=33, columnspan=2)
