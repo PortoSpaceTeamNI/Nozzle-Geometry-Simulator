@@ -8,6 +8,7 @@ card_str = """
 fuel C30H62  C 30 H 62  wt%=83.00
 h,cal=-158348.0  t(k)=298.15  rho=0.775
 """
+
 add_new_fuel('Paraffin', card_str)
 C = CEA_Obj(propName='', oxName='N2O', fuelName='Paraffin')
 
