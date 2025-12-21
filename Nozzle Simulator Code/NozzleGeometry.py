@@ -6,6 +6,10 @@ import math
 from scipy.optimize import fsolve
 from rocketcea.cea_obj import CEA_Obj
 from rocketcea.cea_obj import CEA_Obj, add_new_fuel
+from nozzle_friction import friction_bl_cea
+from k import *
+import re as re_mod
+
 
 # Adding new fuel
 card_str = """
@@ -19,6 +23,99 @@ C = CEA_Obj(propName='', oxName='N2O', fuelName='Paraffin')
 # Create main window
 root = tk.Tk()
 root.title("Nozzle Profile Generator")
+
+last_results = {}
+
+def plot_friction_results(res, translation_x, rt):
+    x = res["x_m"]
+    r = res["r_m"]
+    Ma_iso = res["Ma_iso"]
+    Ma_eff = res["Ma_eff"]
+    delta = res["delta_star_m"]
+    r_eff = res["r_eff_m"]
+    mu = res["mu_Pa_s"]
+    Rex = res["Re_x_plot"]
+
+    # Mach comparison
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, Ma_iso, label="Mach (geom)")
+    plt.plot(x, Ma_eff, label="Mach (with BL)")
+    plt.axvline(translation_x, linestyle="--", label="throat")
+    plt.grid()
+    plt.xlabel("x (m)")
+    plt.ylabel("Mach")
+    plt.title("Mach profile — ideal vs BL-corrected")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    # delta*
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, delta * 1e3)
+    plt.axvline(translation_x, linestyle="--")
+    plt.grid()
+    plt.xlabel("x (m)")
+    plt.ylabel("δ* (mm)")
+    plt.title("Boundary-layer displacement thickness (continuous)")
+    plt.tight_layout()
+    plt.show()
+
+    # r vs r_eff
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, r * 1e3, label="geometry")
+    plt.plot(x, r_eff * 1e3, label="effective")
+    plt.axvline(translation_x, linestyle="--")
+    plt.grid()
+    plt.xlabel("x (m)")
+    plt.ylabel("radius (mm)")
+    plt.title("Radius reduction due to BL")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    # effective area loss
+    eps_geom = (r[-1] / rt) ** 2
+    eps_eff  = (r_eff[-1] / rt) ** 2
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, r_eff / r)
+    plt.axvline(translation_x, linestyle="--")
+    plt.grid()
+    plt.xlabel("x (m)")
+    plt.ylabel("r_eff / r")
+    plt.title(f"Effective area loss (ε: geom={eps_geom:.3f}, eff={eps_eff:.3f})")
+    plt.tight_layout()
+    plt.show()
+
+    # mu(x)
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, mu)
+    plt.axvline(translation_x, linestyle="--")
+    plt.grid()
+    plt.xlabel("x (m)")
+    plt.ylabel("mu (Pa·s)")
+    title = "Viscosity mu(T) from CEA (fit)" if (res.get("cea_mu_triplet") is not None) else "Viscosity mu(T) fallback"
+    plt.title(title)
+    plt.tight_layout()
+    plt.show()
+
+    # Re_x
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, Rex)
+    plt.axvline(translation_x, linestyle="--")
+    plt.grid()
+    plt.xlabel("x (m)")
+    plt.ylabel("Re_x")
+    plt.title("Re_x along nozzle (continuous x)")
+    plt.tight_layout()
+    plt.show()
+
+    # print CEA triplet if available
+    trip = res.get("cea_mu_triplet")
+    if trip is not None:
+        print("CEA mu triplet (T[K], mu[Pa.s]):",
+              (trip["Tc"], trip["muc"]),
+              (trip["Tt"], trip["mut"]),
+              (trip["Te"], trip["mue"]))
 
 # Main simulation function
 def run_simulation(mode):
@@ -75,6 +172,7 @@ def run_simulation(mode):
         Y = np.array([Py, m0, re])
         coeffs = np.linalg.solve(A, Y)
         a, b_parab, c = coeffs
+        
 
         # Inverted Concavity Exception
         if a > 0:
@@ -82,6 +180,9 @@ def run_simulation(mode):
             return
         else:
             warning_label.config(text="")
+
+        theta_out_rad = math.atan(2*a*Lfinal + b_parab)   # y'(x)=2ax+b, avaliar em x=Lfinal
+        theta_out_deg = abs(math.degrees(theta_out_rad))  # magnitude (positivo)
 
         # Defining Parabolic Equation
         x_vals = np.linspace(Px, Lfinal, 300)
@@ -177,6 +278,7 @@ def run_simulation(mode):
         # Apply horizontal translation to move the nozzle to the right
         translation_x = -xr + (R_chamber - yr) / math.tan(theta_sub)
 
+
         # Translation Application Function
         def correct_translation(x_vals, translation_x):
             # Applicating the Translation to All Values
@@ -198,7 +300,21 @@ def run_simulation(mode):
         arc_x = correct_translation(arc_x, translation_x)
         x_vals = correct_translation(x_vals, translation_x)
 
+                # ------------------------------------------------------------
+        # Build full nozzle stations (x_all, r_all) for friction model
+        # ------------------------------------------------------------
+        x_all = np.concatenate([xs0, xs1, arc_x, x_vals]).astype(float)
+        r_all = np.concatenate([ys0, ys1, arc_y, y_vals]).astype(float)
+
+        mask = np.isfinite(x_all) & np.isfinite(r_all)
+        x_all = x_all[mask]
+        r_all = r_all[mask]
+        idx = np.argsort(x_all)
+        x_all = x_all[idx]
+        r_all = r_all[idx]
+
         # 2D Plot
+
         def plot2d():
             plt.figure(figsize=(10, 6))
             plt.plot(xs0, ys0, 'r--', label="Initial Straight Line")
@@ -210,21 +326,15 @@ def run_simulation(mode):
             plt.xlabel('x')
             plt.ylabel('y')
             length = Lfinal - xf
-            # Derivative of the Parabolic Equation: y'(x) = 2*a*x + b
-            theta_out = math.atan(2*a*re + b)
-            theta_out = -math.degrees(theta_out)  # Rad to Deg
             plt.title('2D Nozzle Profile', pad=30)
             plt.figtext(0.1, 0.94, f'Contraction Ratio  = {cr:.3f}', fontsize=10, ha='left')
             plt.figtext(0.1, 0.91, f'Expansion Ratio = {exp:.3f}', fontsize=10, ha='left')
             plt.figtext(0.7, 0.94, f'Nozzle Length = {length:.3f} m', fontsize=10, ha='left')
-            plt.figtext(0.7, 0.91, f'Parabola Exit Angle = {theta_out:.3f}$^\\circ$', fontsize=10, ha='left')
-            if re > R_chamber:
-                plt.ylim(0, re*1.2)
-            else:
-                plt.ylim(0, R_chamber*1.2)
+            plt.figtext(0.7, 0.91, f'Parabola Exit Angle = {theta_out_deg:.3f}$^\\circ$', fontsize=10, ha='left')
             plt.gca().set_aspect('equal')
             plt.tight_layout()
             plt.show()
+
 
         def plot3d_single():
             x_vals_3d = np.concatenate([xs1, xs0, arc_x, x_vals])
@@ -483,6 +593,279 @@ def run_simulation(mode):
             plt.tight_layout()
             plt.show()
 
+                # --- coloca isto perto do topo (global) ---
+        last_results = {}  # guarda outputs da última simulação (para poderes usar noutro código)
+
+
+        # --- dentro do run_simulation(mode), depois de resolveres a parábola (a, b_parab, c) ---
+        # ATENÇÃO: no teu código tens bug aqui:
+        #   theta_out = math.atan(2*a*re + b)
+        # "b" aí é a variável da reta sub-sónica. O correto para derivada da parábola é b_parab.
+        def compute_theta_out_deg(a, b_parab, x_exit):
+            # y'(x) = 2 a x + b_parab
+            return -math.degrees(math.atan(2.0 * a * x_exit + b_parab))
+
+
+        # --- cria uma função para obter propriedades (com fallback) ---
+        def get_gas_transport_props(Pc_bar, MR, Tc_K, default_mu=3.5e-5, default_Cp=3000.0, default_Pr=0.7, default_cstar=1500.0):
+            """
+            Tenta obter mu, Cp, Pr, c*.
+            Se a tua instalação do rocketcea não tiver transport, cai para defaults.
+            Unidades:
+            mu  [Pa.s]
+            Cp  [J/kg/K]
+            Pr  [-]
+            c*  [m/s]
+            """
+            mu = default_mu
+            Cp = default_Cp
+            Pr = default_Pr
+            cstar = default_cstar
+
+            # c* normalmente existe
+            try:
+                cstar = float(C.get_Cstar(Pc=Pc_bar, MR=MR))  # rocketcea: tipicamente em m/s
+            except Exception:
+                pass
+
+            # Transport properties: nem todas as builds expõem isto de forma direta
+            # Se tiveres métodos específicos na tua versão, mete aqui.
+            # Exemplo (se existir na tua):
+            # props = C.get_Chamber_Transport(Pc=Pc_bar, MR=MR)
+            # mu, Cp, Pr = props["visc"], props["cp"], props["pr"]
+            return mu, Cp, Pr, cstar
+
+
+        # --- adiciona este bloco dentro do run_simulation(mode) (depois de já teres xs0,xs1,arc_x,x_vals etc em arrays) ---
+        def run_thermal():
+            """
+            Calcula h_g(x), sigma(x), T_aw(x) e q''(x) ao longo do nozzle.
+            Baseado em:
+            q'' = h_g (T_aw - T_wg)  (6-1)
+            T_aw eq (6-2)
+            Bartz simplificado (6-3)
+            sigma (6-4)
+            """
+            # --- Inputs (podes criar Entries no GUI; aqui usei defaults + tentativa de ler de entries se existirem) ---
+            # Temperatura da parede no lado do gás (Twg). Se não souberes, mete um guess (ex: 600-1200K para grafite, depende do caso).
+            Twg = 800.0
+            r_recovery = 0.9  # fator r da eq (6-2). Podes também aproximar por ~Pr^(1/3) em turbulento, mas aqui deixo como input.
+
+            # Se quiseres mesmo meter no GUI, cria entry_Twg e entry_r, e tenta ler:
+            # Twg = float(entry_Twg.get())
+            # r_recovery = float(entry_r.get())
+
+            # --- Constantes geométricas para Bartz ---
+            Dt = 2.0 * rt
+            At = math.pi * rt**2
+
+            # raio de curvatura no throat (R). No teu modelo tens r_sup = 0.4*rt (arco supersónico).
+            # Se quiseres outra definição, ajusta aqui.
+            R_throat = 0.4 * rt
+
+            # Propriedades do gás
+            mu, Cp, Pr, cstar = get_gas_transport_props(Pc, MR, Tc)
+
+            # Constrói lista de estações ao longo do nozzle (ordenadas)
+            x_all = np.concatenate([xs0, xs1, arc_x, x_vals])
+            y_all = np.concatenate([ys0, ys1, arc_y, y_vals])
+
+            mask = np.isfinite(x_all) & np.isfinite(y_all)
+            x_all = x_all[mask]
+            y_all = y_all[mask]
+
+            idx = np.argsort(x_all)
+            x_all = x_all[idx]
+            y_all = y_all[idx]
+
+            # Calcula Mach em cada estação (usa o teu find_mach, que já respeita a geometria)
+            Ma_all = np.array([find_mach(float(x)) for x in x_all], dtype=float)
+
+            # Eq (6-2): Taw
+            gamma_local = gamma  # no teu código gamma vem de get_Chamber_MolWt_gamma (constante). Se quiseres gamma(x), aí já é outro nível.
+            Taw = Tc * (1.0 + r_recovery * ((gamma_local - 1.0) / 2.0) * Ma_all**2) / (1.0 + ((gamma_local - 1.0) / 2.0) * Ma_all**2)
+
+            # Eq (6-4): sigma
+            sigma = (
+                (0.5 * (Twg / Tc) * (1.0 + ((gamma_local - 1.0) / 2.0) * Ma_all**2) + 0.5) ** (-0.68)
+                * (1.0 + ((gamma_local - 1.0) / 2.0) * Ma_all**2) ** (-0.12)
+            )
+
+            # Eq (6-3): hg (Bartz simplificado)
+            # Atenção: no PDF a parte "[]" é constante ao longo do nozzle; varia com (At/Ax)^0.9 e sigma.
+            # (P0g/c*) -> aqui vamos usar Pc (bar) e converter para Pa para coerência dimensional.
+            # Se preferires trabalhar em bar como o teu resto, mantém mas fica "semi-empírico".
+            Pc_Pa = Pc * 1e5  # bar -> Pa
+
+            # Ax em cada estação:
+            Ax = math.pi * y_all**2
+
+            const_bracket = (
+                0.026 / (Dt**0.2)
+                * ((mu**0.2) * Cp / (Pr**0.6))
+                * (Pc_Pa / cstar)
+                * ((Dt / R_throat) ** 0.1)
+            )
+            hg = const_bracket * ((At / Ax) ** 0.9) * sigma  # W/m^2/K (aprox. empírico)
+
+            # Eq (6-1): q''
+            qdot = hg * (Taw - Twg)
+
+            # Guarda outputs (para ires buscar noutro código)
+            last_results["thermal"] = {
+                "x_m": x_all.copy(),
+                "y_m": y_all.copy(),
+                "Ma": Ma_all.copy(),
+                "Taw_K": Taw.copy(),
+                "Twg_K": float(Twg),
+                "sigma": sigma.copy(),
+                "hg_W_m2K": hg.copy(),
+                "qdot_W_m2": qdot.copy(),
+                "mu_Pa_s": float(mu),
+                "Cp_J_kgK": float(Cp),
+                "Pr": float(Pr),
+                "cstar_m_s": float(cstar),
+            }
+
+            # Plot rápido (se quiseres)
+            plt.figure(figsize=(10, 6))
+            plt.plot(x_all, hg)
+            plt.grid()
+            plt.xlabel("x (m)")
+            plt.ylabel("h_g (W/m²/K)")
+            plt.title("Convective heat transfer coefficient (Bartz simplified)")
+            plt.tight_layout()
+            plt.show()
+
+            plt.figure(figsize=(10, 6))
+            plt.plot(x_all, qdot)
+            plt.grid()
+            plt.xlabel("x (m)")
+            plt.ylabel("q'' (W/m²)")
+            plt.title("Convective heat flux")
+            plt.tight_layout()
+            plt.show()
+
+            # opcional: CSV
+            try:
+                with open("thermal_profile.csv", "w") as f:
+                    f.write("x_m,y_m,Ma,Taw_K,Twg_K,sigma,hg_W_m2K,qdot_W_m2\n")
+                    for xi, yi, Mai, Tawi, si, hgi, qi in zip(x_all, y_all, Ma_all, Taw, sigma, hg, qdot):
+                        f.write(f"{xi:.6f},{yi:.6f},{Mai:.6f},{Tawi:.3f},{Twg:.3f},{si:.6f},{hgi:.3f},{qi:.3f}\n")
+                lbl_result.config(text="Thermal profile written to thermal_profile.csv", foreground="chartreuse4")
+            except Exception as e:
+                lbl_result.config(text=f"Thermal CSV error: {e}", foreground="red")
+
+            return last_results["thermal"]
+
+
+        # --- corrige o teu theta_out e adiciona modos novos no fim do run_simulation ---
+        # (coloca isto já perto do teu bloco: if mode == '2d': ...)
+
+        # calcula theta_out corretamente (em graus) e guarda
+        theta_out_deg = compute_theta_out_deg(a, b_parab, Lfinal)
+        last_results["theta_out_deg"] = theta_out_deg
+        last_results["a"] = float(a)
+        last_results["b_parab"] = float(b_parab)
+        last_results["c"] = float(c)
+        last_results["Lfinal"] = float(Lfinal)
+
+        # ============================================================
+        # Robust Area–Mach relations (NO fsolve)
+        # ============================================================
+
+
+
+
+            
+
+
+        
+        
+
+
+
+        if mode == "theta":
+            # para chamares isto a partir de outro script e receberes o valor
+            return theta_out_deg
+        
+
+        elif mode == "thermal":
+            return run_thermal()
+        
+        elif mode == "friction_bl_cea":
+            res = friction_bl_cea(
+                x_all=x_all,
+                r_all=r_all,
+                rt=rt,
+                translation_x=translation_x,
+                Tc=Tc,
+                Pc_bar=Pc,
+                MR=MR,
+                exp=exp,
+                C=C,
+                plot_debug=True
+            )
+
+            last_results["friction_bl_cea"] = res
+
+            eta = res["eta_v"]
+            lbl_result.config(text=f"Friction (BL+CEA μ): η_v = {eta:.4f}", foreground="chartreuse4")
+
+            # plots (manténs)
+            plot_friction_results(res, translation_x, rt)
+
+            return res
+
+
+        # (mantém os teus outros elifs como estão)
+
+        if mode == "calibrate_k":
+            # 1) compute Phi for THIS geometry (diverging only)
+            Phi_ref, dbg = turning_metric_phi(x_all, r_all, translation_x, only_diverging=True)
+
+            # 2) choose a reference turning efficiency (1–2% loss typical)
+            eta_turn_ref = 0.99  # podes mudar para 0.985 se quiseres penalizar mais
+
+            # 3) compute k
+            k_cal = calibrate_k_from_reference(Phi_ref, eta_turn_ref=eta_turn_ref)
+
+            # store
+            last_results["Phi_ref"] = Phi_ref
+            last_results["k_turn"] = k_cal
+            last_results["eta_turn_ref"] = eta_turn_ref
+
+            lbl_result.config(text=f"Calibrated k={k_cal:.4f} (Phi={Phi_ref:.4f} rad, eta_ref={eta_turn_ref:.3f})",
+                            foreground="chartreuse4")
+            return k_cal
+
+
+        if mode == "score":
+            # require k to exist
+            k_turn = last_results.get("k_turn", 0.1)  # fallback se ainda não calibraste
+
+            Phi, _ = turning_metric_phi(x_all, r_all, translation_x, only_diverging=True)
+            eta_turn = eta_turn_from_phi(Phi, k_turn)
+
+            # exemplo: eta_div a partir do teu theta_out_deg (tu já calculas)
+            eta_div = math.cos(math.radians(abs(theta_out_deg)))
+
+            # eta_fric do teu BL+CEA (já tens)
+            fr = friction_bl_cea(x_all=x_all, r_all=r_all, rt=rt, translation_x=translation_x,
+                                Tc=Tc, Pc_bar=Pc, MR=MR, exp=exp, C=C, plot_debug=False)
+            eta_fric = fr["eta_v"]
+
+            eta_total = eta_div * eta_fric * eta_turn
+
+            last_results["eta_turn"] = eta_turn
+            last_results["eta_div"] = eta_div
+            last_results["eta_fric"] = eta_fric
+            last_results["eta_total"] = eta_total
+
+            lbl_result.config(text=f"score: eta_total={eta_total:.4f} (div={eta_div:.4f}, fric={eta_fric:.4f}, turn={eta_turn:.4f})",
+                            foreground="chartreuse4")
+            return eta_total
+
 
         if mode == '2d':
             plot2d()
@@ -498,6 +881,8 @@ def run_simulation(mode):
             plot_Temp()
         elif mode == 'Pres':
             plot_Pres()
+        elif mode == 'theta':
+            return theta_out_deg
 
     except Exception as e:
         lbl_result.config(text=f"Error: {str(e)}")
@@ -509,7 +894,7 @@ frame.grid(row=0, column=0)
 
 labels = [
     ("Combustion chamber temperature (K):", "3000"),
-    ("Combustion chamber pressure (bar):", "50"),
+    ("Combustion chamber pressure (bar):", "30"),
     ("Mixture ratio (O/F):", "6.5"),
     ("Throat Radius (m):", "0.01548"),
     ("Expansion Ratio:", "5"),
@@ -530,6 +915,68 @@ for i, (text, default) in enumerate(labels):
 
 entry_Tc, entry_Pc, entry_MR, entry_rt, entry_exp, entry_halfangle, entry_theta_in, entry_theta_sub, entry_Rchamber, entry_bell_contour = entries
 
+def plot_sensitivity_theta_in():
+    # valores de k para comparar
+    k_list = [0.05, 0.10, 0.20]
+
+    # intervalo de theta_in (graus)
+    theta_min = 15.0
+    theta_max = 45.0
+    N = 25
+    theta_grid = np.linspace(theta_min, theta_max, N)
+
+    # guarda o valor original do entry
+    theta_in_original = entry_theta_in.get()
+
+    plt.figure(figsize=(10, 6))
+
+    for k in k_list:
+        etas = []
+        etas_div = []
+        etas_fric = []
+        etas_turn = []
+
+        # override global do k para o score
+        last_results["k_turn_override"] = float(k)
+
+        for th in theta_grid:
+            # set theta_in no GUI (em graus)
+            entry_theta_in.delete(0, tk.END)
+            entry_theta_in.insert(0, f"{th:.6f}")
+
+            # corre score (não deve fazer plots)
+            eta_total = run_simulation("score")
+
+            # se houver erro e eta_total vier None
+            if eta_total is None:
+                etas.append(np.nan)
+                etas_div.append(np.nan)
+                etas_fric.append(np.nan)
+                etas_turn.append(np.nan)
+                continue
+
+            etas.append(float(eta_total))
+            etas_div.append(float(last_results.get("eta_div", np.nan)))
+            etas_fric.append(float(last_results.get("eta_fric", np.nan)))
+            etas_turn.append(float(last_results.get("eta_turn", np.nan)))
+
+        etas = np.array(etas, dtype=float)
+        plt.plot(theta_grid, etas, marker="o", label=f"k={k:.2f}")
+
+    # repõe theta_in original e limpa override
+    entry_theta_in.delete(0, tk.END)
+    entry_theta_in.insert(0, theta_in_original)
+    if "k_turn_override" in last_results:
+        del last_results["k_turn_override"]
+
+    plt.grid()
+    plt.xlabel("theta_in (deg)")
+    plt.ylabel("eta_total")
+    plt.title("Sensitivity: eta_total vs theta_in for different k")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
 
     
 ttk.Button(frame, text="Plot 2D", command=lambda: run_simulation('2d')).grid(row=30, column=0)
@@ -539,6 +986,13 @@ ttk.Button(frame, text="Update CSV", command=lambda: run_simulation('csv')).grid
 ttk.Button(frame, text="Mach Curve", command=lambda: run_simulation('Mach')).grid(row=34, column=0, sticky="w", padx=45)
 ttk.Button(frame, text="Temperature Profile", command=lambda: run_simulation('Temp')).grid(row=34 , column=1)
 ttk.Button(frame, text="Pressure Profile", command=lambda: run_simulation('Pres')).grid(row=34 , columnspan=2)
+ttk.Button(frame, text="Thermal (hg & q'')", command=lambda: run_simulation('thermal')).grid(row=35, columnspan=2)
+ttk.Button(frame, text="Friction (BL+CEA mu)", command=lambda: run_simulation('friction_bl_cea')).grid(row=38, columnspan=2)
+ttk.Button(frame, text="Calibrate k (turn)", command=lambda: run_simulation('calibrate_k')).grid(row=39, columnspan=2)
+ttk.Button(frame, text="Sensitivity: theta_in vs k", command=plot_sensitivity_theta_in).grid(row=40, columnspan=2, pady=6)
+
+
+
 
 lbl_result = ttk.Label(frame, text="")
 lbl_result.grid(row=33, columnspan=2)
