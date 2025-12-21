@@ -74,7 +74,7 @@ def turning_metric_phi(x_all, r_all, x_throat, only_diverging=True, resample_N=8
     theta = np.arctan(drdx)
     dtheta_dx = np.gradient(theta, x)
 
-    Phi = float(np.trapz(np.abs(dtheta_dx), x))
+    Phi = float(np.trapezoid(np.abs(dtheta_dx), x))
     return Phi, {"x": x, "theta": theta, "dtheta_dx": dtheta_dx}
 
 
@@ -90,3 +90,4 @@ def eta_turn_from_phi(Phi, k):
     Phi = max(float(Phi), 0.0)
     k = max(float(k), 0.0)
     return float(math.exp(-k * Phi))
+
