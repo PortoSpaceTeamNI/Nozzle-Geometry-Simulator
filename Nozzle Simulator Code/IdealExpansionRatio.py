@@ -3,10 +3,19 @@ from tkinter import messagebox
 from rocketcea.cea_obj import CEA_Obj, add_new_fuel
 import matplotlib.pyplot as plt
 
+import csv
+from datetime import datetime
+
 # --- Personalized Fuel ---
 card_str = """
-fuel C30H62  C 30 H 62  wt%=83.00
-h,cal=-158348.0  t(k)=298.15  rho=0.775
+fuel C30H62  C 30 H 62  wt%=75.0
+h,cal=-191921.61  t(k)=298.15
+fuel C8H8  C 8 H 8  wt%=10.3
+h,cal=35444.55  t(k)=298.15
+fuel C4H6  C 4 H 6  wt%=7.35
+h,cal=26290.63  t(k)=298.15
+fuel C3H3N  C 3 H 3 N 1  wt%=7.35
+h,cal=35156.79  t(k)=298.15
 """
 
 add_new_fuel('Paraffin', card_str)
@@ -32,6 +41,9 @@ def expansion_ratio(P1, P2, P3, OF, ambient_pressure):
     exp_pamb = []
     all_exps = []
 
+    # ---- NEW: storage for main pressure curve (Pc == P1) ----
+    main_curve = []  # list of dicts: {"eps":..., "p_exit_atm":...}
+
     for pc in pcs:
         pexits = []
         exps = []
@@ -40,14 +52,19 @@ def expansion_ratio(P1, P2, P3, OF, ambient_pressure):
         prev_p_exit = None
 
         while exp <= 25:
-            p_exit_val = p_exit(pc, OF, exp)
+            p_exit_val = p_exit(pc, OF, exp)   # <- ensure units are consistent with your ylabel
             pexits.append(p_exit_val)
             exps.append(exp)
             all_exps.append(exp)
 
+            # ---- NEW: store points only for main chamber pressure ----
+            if pc == P1:
+                main_curve.append({"eps": exp, "p_exit_atm": p_exit_val})
+
             if prev_exp is not None:
-                if (prev_p_exit > ambient_pressure and p_exit_val < ambient_pressure) or \
-                   (prev_p_exit < ambient_pressure and p_exit_val > ambient_pressure):
+                crossed = ((prev_p_exit > ambient_pressure and p_exit_val < ambient_pressure) or
+                           (prev_p_exit < ambient_pressure and p_exit_val > ambient_pressure))
+                if crossed:
                     exp_interpolated = prev_exp + (ambient_pressure - prev_p_exit) * (exp - prev_exp) / (p_exit_val - prev_p_exit)
                     exp_pamb.append((pc, exp_interpolated))
                     all_exps.append(exp_interpolated)
@@ -58,12 +75,36 @@ def expansion_ratio(P1, P2, P3, OF, ambient_pressure):
 
         plt.plot(exps, pexits, label=f'Pc = {pc} bar')
 
+    # ---- NEW: write CSV for main pressure curve ----
+    # pick the interpolated eps for P1, if it exists
+    eps_at_pamb_P1 = None
+    for pc, eps_int in exp_pamb:
+        if pc == P1:
+            eps_at_pamb_P1 = eps_int
+            break
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_name = f"pexit_vs_exp_Pc{P1:g}bar_OF{OF:g}_Pamb{ambient_pressure:g}atm_{timestamp}.csv"
+
+    with open(csv_name, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Pc_bar", "OF", "Pamb_atm", "eps_at_Pamb_interp"])
+        writer.writerow([P1, OF, ambient_pressure, eps_at_pamb_P1])
+        writer.writerow([])
+
+        writer.writerow(["eps", "p_exit_atm"])
+        for row in main_curve:
+            writer.writerow([row["eps"], row["p_exit_atm"]])
+
+    print(f"[CSV] Saved main curve to: {csv_name}")
+
+    # ---- plotting (unchanged) ----
     if exp_pamb:
         xs = [exp for _, exp in exp_pamb]
         ys = [ambient_pressure] * len(exp_pamb)
         plt.scatter(xs, ys, color='red', marker='o', s=20, label=f"Pexit = {ambient_pressure} atm")
-        plt.figtext(0.1, 0.94, f'Ideal Expansion Ratio (Pc={P1} bar, O/F={OF}, P_amb={ambient_pressure}) = {xs[0]+0.107:.3f}', fontsize=10, ha='left')
-    
+        plt.figtext(0.1, 0.94, f'Ideal Expansion Ratio (Pc={P1} bar, O/F={OF}, P_amb={ambient_pressure}) = {xs[0]:.3f}', fontsize=10, ha='left')
+
     plt.legend(loc='best')
     plt.grid(True)
     plt.title('Nozzle Exit Pressure vs. Expansion Ratio')

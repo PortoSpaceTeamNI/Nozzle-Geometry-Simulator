@@ -6,9 +6,16 @@ import math
 
 # Personalized Fuel
 card_str = """
-fuel C30H62  C 30 H 62  wt%=83.00
-h,cal=-158348.0  t(k)=298.15  rho=0.775
+fuel C30H62  C 30 H 62  wt%=75.0
+h,cal=-191921.61  t(k)=298.15
+fuel C8H8  C 8 H 8  wt%=10.3
+h,cal=35444.55  t(k)=298.15
+fuel C4H6  C 4 H 6  wt%=7.35
+h,cal=26290.63  t(k)=298.15
+fuel C3H3N  C 3 H 3 N 1  wt%=7.35
+h,cal=35156.79  t(k)=298.15
 """
+
 
 add_new_fuel('Paraffin', card_str)
 C = CEA_Obj(propName='', oxName='N2O', fuelName='Paraffin')
@@ -16,9 +23,11 @@ C = CEA_Obj(propName='', oxName='N2O', fuelName='Paraffin')
 # Calculation Functions with CEA
 def get_gamma(Pc, OF, suparea):
     s = C.get_full_cea_output(Pc=Pc, MR=OF, eps=suparea, output='siunits', pc_units='bar')
+    print(s)
     for line in s.split("\n"):
         if "GAMMA" in line:
             values = [float(val) for val in line.split() if val.replace('.', '', 1).isdigit()]
+            print(values)
             return values[1]
 
 def get_T_comb(Pc, OF, suparea):
