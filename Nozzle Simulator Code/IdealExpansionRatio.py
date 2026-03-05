@@ -8,13 +8,13 @@ from datetime import datetime
 
 # --- Personalized Fuel ---
 card_str = """
-fuel C30H62  C 30 H 62  wt%=75.0
+fuel C30H62 C 30 H 62 wt%=83.0
 h,cal=-191921.61  t(k)=298.15
-fuel C8H8  C 8 H 8  wt%=10.3
+fuel C8H8 C 8 H 8 wt%=7.004
 h,cal=35444.55  t(k)=298.15
-fuel C4H6  C 4 H 6  wt%=7.35
+fuel C4H6 C 4 H 6 wt%=4.998
 h,cal=26290.63  t(k)=298.15
-fuel C3H3N  C 3 H 3 N 1  wt%=7.35
+fuel C3H3N C 3 H 3 N 1 wt%=4.998
 h,cal=35156.79  t(k)=298.15
 """
 

@@ -9,12 +9,19 @@ from rocketcea.cea_obj import CEA_Obj, add_new_fuel
 from nozzle_friction import friction_bl_cea
 from k import *
 import re as re_mod
+from getThroatRadius import *
 
 
 # Adding new fuel
 card_str = """
-fuel C30H62  C 30 H 62  wt%=83.00
-h,cal=-158348.0  t(k)=298.15  rho=0.775
+fuel C30H62 C 30 H 62 wt%=83.0
+h,cal=-191921.61  t(k)=298.15
+fuel C8H8 C 8 H 8 wt%=7.004
+h,cal=35444.55  t(k)=298.15
+fuel C4H6 C 4 H 6 wt%=4.998
+h,cal=26290.63  t(k)=298.15
+fuel C3H3N C 3 H 3 N 1 wt%=4.998
+h,cal=35156.79  t(k)=298.15
 """
 
 add_new_fuel('Paraffin', card_str)
@@ -197,7 +204,6 @@ def run_simulation(mode):
             return
         
         # Calculating the mach curve
-        mw, gamma = C.get_Chamber_MolWt_gamma(Pc=Pc, MR=MR)
 
         def find_y_from_x(x):
             # SUPPRESSED: x coordinate is already translated. 
@@ -223,10 +229,25 @@ def run_simulation(mode):
 
             return float(y)
 
+        gamma_c, gamma_t, gamma_e = get_gamma_triplet(Pc, MR, exp)
+        def clamp01(s):
+            return 0.0 if s < 0.0 else (1.0 if s > 1.0 else s)
+
+        def smoothstep(s):
+            return s*s*(3.0 - 2.0*s)
+
+        def gamma_x(x):
+            if x <= translation_x:
+                return gamma_t
+            r = find_y_from_x(x)
+            eps_x = (r/rt)**2
+            s = (eps_x - 1.0)/(exp - 1.0)
+            s = smoothstep(clamp01(s))
+            return gamma_t + (gamma_e - gamma_t)*s
         
         def find_mach(x):
             y = find_y_from_x(x)
-
+            gamma = gamma_x(x)
             target = (y / rt)**2
 
             def func(Ma):
@@ -239,7 +260,7 @@ def run_simulation(mode):
             return float(Mach)
         
         def find_temp(Ma):
-
+            gamma = gamma_x(x)
             target = Tc/(1+(gamma-1)/2 * Ma**2)
 
             def func(T):
@@ -248,9 +269,9 @@ def run_simulation(mode):
             Ta = fsolve(func, T_guess)[0]
             return float(Ta)
         
-        def find_pres(Ma):
-
-            target = Pc * (1/(1+(gamma-1)/2 * Ma**2))**(gamma/(gamma-1))
+        def find_pres(Ma, x):
+            gam = gamma_x(x)
+            target = Pc * (1.0/(1.0 + (gam-1.0)/2.0 * Ma**2))**(gam/(gam-1.0))
 
             def func(P):
                 return P - target
@@ -527,19 +548,19 @@ def run_simulation(mode):
         xs0 = np.array(xs0)
         Mas0 = np.array([find_mach(x) for x in xs0])
         Tas0 = np.array([find_temp(Ma) for Ma in Mas0])
-        Pas0 = np.array([find_pres(Ma) for Ma in Mas0])
+        Pas0 = np.array([find_pres(Ma, x) for Ma in Mas0])
         xs1 = np.array(xs1)
         Mas1 = np.array([find_mach(x) for x in xs1])
         Tas1 = np.array([find_temp(Ma) for Ma in Mas1])
-        Pas1 = np.array([find_pres(Ma) for Ma in Mas1])
+        Pas1 = np.array([find_pres(Ma, x) for Ma in Mas1])
         arc_x = np.array(arc_x)
         Ma_arc = np.array([find_mach(x) for x in arc_x])
         Ta_arc = np.array([find_temp(Ma) for Ma in Ma_arc])
-        Pa_arc = np.array([find_pres(Ma) for Ma in Ma_arc])
+        Pa_arc = np.array([find_pres(Ma, x) for Ma in Ma_arc])
         x_vals = np.array(x_vals)
         Ma_vals = np.array([find_mach(x) for x in x_vals])
         Ta_vals = np.array([find_temp(Ma) for Ma in Ma_vals])
-        Pa_vals = np.array([find_pres(Ma) for Ma in Ma_vals])
+        Pa_vals = np.array([find_pres(Ma, x) for x, Ma in zip(x_vals, Ma_vals)])
 
 
         def plot_Mach():
@@ -607,33 +628,6 @@ def run_simulation(mode):
 
 
         # --- cria uma função para obter propriedades (com fallback) ---
-        def get_gas_transport_props(Pc_bar, MR, Tc_K, default_mu=3.5e-5, default_Cp=3000.0, default_Pr=0.7, default_cstar=1500.0):
-            """
-            Tenta obter mu, Cp, Pr, c*.
-            Se a tua instalação do rocketcea não tiver transport, cai para defaults.
-            Unidades:
-            mu  [Pa.s]
-            Cp  [J/kg/K]
-            Pr  [-]
-            c*  [m/s]
-            """
-            mu = default_mu
-            Cp = default_Cp
-            Pr = default_Pr
-            cstar = default_cstar
-
-            # c* normalmente existe
-            try:
-                cstar = float(C.get_Cstar(Pc=Pc_bar, MR=MR))  # rocketcea: tipicamente em m/s
-            except Exception:
-                pass
-
-            # Transport properties: nem todas as builds expõem isto de forma direta
-            # Se tiveres métodos específicos na tua versão, mete aqui.
-            # Exemplo (se existir na tua):
-            # props = C.get_Chamber_Transport(Pc=Pc_bar, MR=MR)
-            # mu, Cp, Pr = props["visc"], props["cp"], props["pr"]
-            return mu, Cp, Pr, cstar
 
 
         # --- adiciona este bloco dentro do run_simulation(mode) (depois de já teres xs0,xs1,arc_x,x_vals etc em arrays) ---
@@ -662,9 +656,9 @@ def run_simulation(mode):
             # raio de curvatura no throat (R). No teu modelo tens r_sup = 0.4*rt (arco supersónico).
             # Se quiseres outra definição, ajusta aqui.
             R_throat = 0.4 * rt
-
+            
             # Propriedades do gás
-            mu, Cp, Pr, cstar = get_gas_transport_props(Pc, MR, Tc)
+            mu, Cp, Pr, cstar = get_gas_transport_props(Pc, MR, exp)
 
             # Constrói lista de estações ao longo do nozzle (ordenadas)
             x_all = np.concatenate([xs0, xs1, arc_x, x_vals])
@@ -682,7 +676,7 @@ def run_simulation(mode):
             Ma_all = np.array([find_mach(float(x)) for x in x_all], dtype=float)
 
             # Eq (6-2): Taw
-            gamma_local = gamma  # no teu código gamma vem de get_Chamber_MolWt_gamma (constante). Se quiseres gamma(x), aí já é outro nível.
+            gamma_local = gamma_x(x)  # no teu código gamma vem de get_Chamber_MolWt_gamma (constante). Se quiseres gamma(x), aí já é outro nível.
             Taw = Tc * (1.0 + r_recovery * ((gamma_local - 1.0) / 2.0) * Ma_all**2) / (1.0 + ((gamma_local - 1.0) / 2.0) * Ma_all**2)
 
             # Eq (6-4): sigma
@@ -893,14 +887,14 @@ frame = ttk.Frame(root, padding=10)
 frame.grid(row=0, column=0)
 
 labels = [
-    ("Combustion chamber temperature (K):", "3000"),
+    ("Combustion chamber temperature (K):", "3300"),
     ("Combustion chamber pressure (bar):", "30"),
     ("Mixture ratio (O/F):", "6.5"),
-    ("Throat Radius (m):", "0.01548"),
-    ("Expansion Ratio:", "5"),
+    ("Throat Radius (m):", "0.01728"),
+    ("Expansion Ratio:", "5.361"),
     ("Reference Conical Nozzle Angle (deg):", "15"),
     ("Initial Supersonic Arc Angle (deg):", "30"),
-    ("Initial Straight Line Angle (deg):", "60"),
+    ("Initial Straight Line Angle (deg):", "50"),
     ("Chamber Diameter (m):", "0.12"),
     ("Bell Contour (%):", "80")
 ]

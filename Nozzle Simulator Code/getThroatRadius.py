@@ -3,16 +3,17 @@ from tkinter import messagebox
 from rocketcea.cea_obj import CEA_Obj, add_new_fuel
 import numpy as np
 import math
+import re
 
 # Personalized Fuel
 card_str = """
-fuel C30H62  C 30 H 62  wt%=75.0
+fuel C30H62 C 30 H 62 wt%=83.0
 h,cal=-191921.61  t(k)=298.15
-fuel C8H8  C 8 H 8  wt%=10.3
+fuel C8H8 C 8 H 8 wt%=7.004
 h,cal=35444.55  t(k)=298.15
-fuel C4H6  C 4 H 6  wt%=7.35
+fuel C4H6 C 4 H 6 wt%=4.998
 h,cal=26290.63  t(k)=298.15
-fuel C3H3N  C 3 H 3 N 1  wt%=7.35
+fuel C3H3N C 3 H 3 N 1 wt%=4.998
 h,cal=35156.79  t(k)=298.15
 """
 
@@ -23,12 +24,97 @@ C = CEA_Obj(propName='', oxName='N2O', fuelName='Paraffin')
 # Calculation Functions with CEA
 def get_gamma(Pc, OF, suparea):
     s = C.get_full_cea_output(Pc=Pc, MR=OF, eps=suparea, output='siunits', pc_units='bar')
-    print(s)
+    #print(s)
     for line in s.split("\n"):
         if "GAMMA" in line:
             values = [float(val) for val in line.split() if val.replace('.', '', 1).isdigit()]
             print(values)
             return values[1]
+
+def get_gamma_triplet(Pc_bar, OF, eps):
+    s = C.get_full_cea_output(Pc=Pc_bar, MR=OF, eps=eps,
+                              output='siunits', pc_units='bar')
+    for line in s.splitlines():
+        u = line.strip().upper()
+        if u.startswith("GAMMA"):
+            vals = [float(v) for v in re.findall(r"[-+]?\d*\.?\d+(?:[Ee][-+]?\d+)?", line)]
+            if len(vals) >= 3:
+                return vals[0], vals[1], vals[2]  # chamber, throat, exit
+    raise RuntimeError("Não encontrei GAMMA no output CEA.")
+
+_FLOAT_RE = re.compile(r'[-+]?\d*\.?\d+(?:[Ee][-+]?\d+)?')
+
+def _nums(line: str):
+    return [float(x) for x in _FLOAT_RE.findall(line)]
+
+def get_gas_transport_props(Pc, OF, suparea,
+                            col=1,  # 0=chamber, 1=throat, 2=exit (mesma lógica do teu get_gamma)
+                            default_mu=3.5e-5, default_Cp=3000.0, default_Pr=0.7, default_cstar=1500.0,
+                            debug=False):
+    """
+    Input:
+      Pc       [bar]
+      OF       [-]  (MR no RocketCEA)
+      suparea  [-]  (eps = Ae/At)
+
+    Output:
+      mu    [Pa.s]
+      Cp    [J/kg/K]
+      Pr    [-]
+      cstar [m/s]
+    """
+    mu = default_mu
+    Cp = default_Cp
+    Pr = default_Pr
+    cstar = default_cstar
+
+    s = C.get_full_cea_output(Pc=Pc, MR=OF, eps=suparea, output='siunits', pc_units='bar')
+    if debug:
+        print(s)
+
+    for line in s.splitlines():
+        u = line.upper()
+
+        # ---- c* ----
+        if ("CSTAR" in u) and ("M/SEC" in u or "M/S" in u or "M-SEC" in u):
+            vals = _nums(line)
+            if len(vals) >= 3:
+                cstar = vals[col] if col < len(vals) else vals[-1]
+
+        # ---- viscosity ----
+        # aparece tipicamente como "VISC" / "VISCOSITY" com 3 colunas (c, t, e)
+        if ("VISC" in u) or ("VISCOSITY" in u):
+            vals = _nums(line)
+            if len(vals) >= 3:
+                mu_val = vals[col] if col < len(vals) else vals[-1]
+
+                # conversões defensivas caso a tua build não esteja mesmo em Pa·s
+                if "MICROPOISE" in u:     # 1 microPoise = 1e-7 Pa·s
+                    mu_val *= 1e-7
+                elif "MILLIPOISE" in u:   # 1 mPoise = 1e-4 Pa·s
+                    mu_val *= 1e-4
+                elif "POISE" in u and "PA" not in u:  # 1 Poise = 0.1 Pa·s
+                    mu_val *= 0.1
+
+                mu = mu_val
+
+        # ---- Cp ----
+        # linhas típicas: "Cp, KJ/(KG)(K)   ...  ...  ..."
+        if (u.strip().startswith("CP") or " CP" in u) and ("KG" in u) and ("K" in u):
+            vals = _nums(line)
+            if len(vals) >= 3:
+                cp_val = vals[col] if col < len(vals) else vals[-1]
+                if "KJ" in u:
+                    cp_val *= 1000.0  # kJ/kg/K -> J/kg/K
+                Cp = cp_val
+
+        # ---- Prandtl ----
+        if "PRANDTL" in u:
+            vals = _nums(line)
+            if len(vals) >= 3:
+                Pr = vals[col] if col < len(vals) else vals[-1]
+
+    return mu, Cp, Pr, cstar
 
 def get_T_comb(Pc, OF, suparea):
     s = C.get_full_cea_output(Pc=Pc, MR=OF, eps=suparea, output='siunits', pc_units='bar')
