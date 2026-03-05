@@ -52,7 +52,7 @@ def calculate_radius():
         OF = float(entry_of.get())
         expansion_ratio = float(entry_expansion_ratio.get())
 
-        R = 8.314 / (get_Molar_Mass(Pc, OF, expansion_ratio)/1000)
+        R = 8.314 / (get_Molar_Mass(Pc, OF, expansion_ratio)/1000)  
         gamma = get_gamma(Pc, OF, expansion_ratio)
         Tcomb = get_T_comb(Pc, OF, expansion_ratio)
 
