@@ -262,7 +262,8 @@ def run_simulation(mode):
         # ---------------------------
         re_exit = math.sqrt(exp) * rt
         Lcone = (re_exit - rt) / math.tan(halfangle)
-        Lparab = bell_contour * Lcone
+        parab_multiplier = 1.5
+        Lparab = bell_contour * Lcone * parab_multiplier
 
         r_sup = 0.4 * rt
         yc_sup = 1.4 * rt
