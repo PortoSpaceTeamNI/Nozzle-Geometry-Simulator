@@ -850,13 +850,13 @@ labels = [
     ("Combustion chamber temperature (K):", "3300"),
     ("Combustion chamber pressure (bar):", "30"),
     ("Mixture ratio (O/F):", "6.5"),
-    ("Throat Radius (m):", "0.01728"),
-    ("Expansion Ratio:", "5.361"),
+    ("Throat Radius (m):", "0.01531"),
+    ("Expansion Ratio:", "5.6"),
     ("Reference Conical Nozzle Angle (deg):", "15"),
-    ("Initial Supersonic Arc Angle (deg):", "30"),
-    ("Initial Straight Line Angle (deg):", "50"),
-    ("Chamber Diameter (m):", "0.12"),
-    ("Bell Contour (%):", "80"),
+    ("Initial Supersonic Arc Angle (deg):", "20"),
+    ("Initial Straight Line Angle (deg):", "45"),
+    ("Chamber Diameter (m):", "0.096"),
+    ("Bell Contour (%):", "90"),
 ]
 
 entries = []
