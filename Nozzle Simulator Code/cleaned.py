@@ -699,7 +699,7 @@ def run_simulation(mode):
             const_bracket = (
                 0.026 / (Dt**0.2)
                 * ((mu**0.2) * Cp / (Pr**0.6))
-                * (Pc_Pa / cstar)
+                * ((Pc_Pa / cstar) ** 0.8)
                 * ((Dt / R_throat) ** 0.1)
             )
             hg = const_bracket * ((At / Ax) ** 0.9) * sigma
