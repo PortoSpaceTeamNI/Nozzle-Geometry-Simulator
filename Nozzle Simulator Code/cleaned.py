@@ -229,6 +229,7 @@ def run_simulation(mode):
         rt = float(entry_rt.get())          # m
         exp = float(entry_exp.get())        # epsilon Ae/At
         halfangle = math.radians(float(entry_halfangle.get()))
+        parabola_multiplier = float(entry_parabmultiplier.get())
         theta_in = math.radians(float(entry_theta_in.get()))
         theta_sub = math.radians(float(entry_theta_sub.get()))
         R_chamber = float(entry_Rchamber.get()) / 2.0
@@ -262,8 +263,7 @@ def run_simulation(mode):
         # ---------------------------
         re_exit = math.sqrt(exp) * rt
         Lcone = (re_exit - rt) / math.tan(halfangle)
-        parab_multiplier = 1.5
-        Lparab = bell_contour * Lcone * parab_multiplier
+        Lparab = bell_contour * Lcone * parabola_multiplier
 
         r_sup = 0.4 * rt
         yc_sup = 1.4 * rt
@@ -853,6 +853,7 @@ labels = [
     ("Throat Radius (m):", "0.01531"),
     ("Expansion Ratio:", "5.6"),
     ("Reference Conical Nozzle Angle (deg):", "15"),
+    ("Parabola Multiplier:", "1.5"),
     ("Initial Supersonic Arc Angle (deg):", "20"),
     ("Initial Straight Line Angle (deg):", "45"),
     ("Chamber Diameter (m):", "0.096"),
@@ -868,7 +869,7 @@ for i, (text, default) in enumerate(labels):
     entries.append(e)
 
 (entry_Tc, entry_Pc, entry_MR, entry_rt, entry_exp,
- entry_halfangle, entry_theta_in, entry_theta_sub, entry_Rchamber,
+ entry_halfangle, entry_parabmultiplier, entry_theta_in, entry_theta_sub, entry_Rchamber,
  entry_bell_contour) = entries
 
 def plot_sensitivity_theta_in():
