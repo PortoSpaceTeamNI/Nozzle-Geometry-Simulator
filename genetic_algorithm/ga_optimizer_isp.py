@@ -19,7 +19,7 @@ import matplotlib.gridspec as gridspec
 import yaml
 from datetime import datetime
 
-from fitness_function_specific_impulse import (
+from genetic_algorithm.fitness_function_specific_impulse import (
     fitness_function,
     P0_OPER, T0_OPER, W_OPER, P_AMB, ISP_REF,
 )
