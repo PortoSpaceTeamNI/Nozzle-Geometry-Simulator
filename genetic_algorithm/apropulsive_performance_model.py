@@ -61,11 +61,11 @@ def compute_exit_radius(r_t: float, eps: float) -> float:
     return np.sqrt(eps) * r_t
 
 
-def compute_nozzle_length(r_t: float, eps: float, alpha: float) -> float:
+def compute_nozzle_length(r_t: float, eps: float, alpha: float, bell_frac: float) -> float:
     """Comprimento axial da secção divergente (80 % do cónico equivalente)."""
     r_e    = compute_exit_radius(r_t, eps)
     L_cone = (r_e - r_t) / np.tan(np.radians(alpha))
-    return 0.80 * L_cone
+    return bell_frac * L_cone
 
 
 def compute_supersonic_arc_point(r_t: float):
