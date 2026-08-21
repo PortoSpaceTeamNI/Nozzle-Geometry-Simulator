@@ -14,32 +14,32 @@ solver and interactive 2D/3D visualization.
 <p align="center">
   <img src="docs/images/int_GA.png" width="800">
   <br>
-  <sub><b>Figure 4 —</b> Genetic-algorithm optimization interface and convergence results.</sub>
+  <sub><b>Figure 1 -</b> Genetic-algorithm optimization interface and convergence results.</sub>
 </p>
 
 <p align="center">
   <img src="docs/images/int_MOC.png" width="800">
   <br>
-  <sub><b>Figure 6 —</b> Method of Characteristics solution and supersonic flow-field visualization.</sub>
+  <sub><b>Figure 2 -</b> Method of Characteristics solution and supersonic flow-field visualization.</sub>
 </p>
 
 
 <p align="center">
   <img src="docs/images/int_2D.png" width="800">
   <br>
-  <sub><b>Figure 1 —</b> Two-dimensional nozzle geometry and flow-domain visualization.</sub>
+  <sub><b>Figure 3 -</b> Two-dimensional nozzle geometry and flow-domain visualization.</sub>
 </p>
 
 <p align="center">
   <img src="docs/images/int_3D.png" width="800">
   <br>
-  <sub><b>Figure 2 —</b> Three-dimensional visualization of the generated nozzle contour.</sub>
+  <sub><b>Figure 4 -</b> Three-dimensional visualization of the generated nozzle contour.</sub>
 </p>
 
 <p align="center">
   <img src="docs/images/int_BL.png" width="800">
   <br>
-  <sub><b>Figure 3 —</b> Boundary-layer analysis interface and resulting flow quantities.</sub>
+  <sub><b>Figure 5 -</b> Boundary-layer analysis interface and resulting flow quantities.</sub>
 </p>
 
 
@@ -47,14 +47,14 @@ solver and interactive 2D/3D visualization.
 <p align="center">
   <img src="docs/images/int_Losses.png" width="800">
   <br>
-  <sub><b>Figure 5 —</b> Nozzle performance-loss analysis and associated contributions.</sub>
+  <sub><b>Figure 6 -</b> Nozzle performance-loss analysis and associated contributions.</sub>
 </p>
 
 
 <p align="center">
   <img src="docs/images/int_Thermal.png" width="800">
   <br>
-  <sub><b>Figure 7 —</b> Thermal analysis interface and nozzle wall heat-transfer results.</sub>
+  <sub><b>Figure 7 -</b> Thermal analysis interface and nozzle wall heat-transfer results.</sub>
 </p>
 
 ## Highlights
