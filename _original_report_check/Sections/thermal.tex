@@ -1,0 +1,111 @@
+% =========================================================
+\section{Gas-Side Thermal Model}
+\label{sec:thermal_model}
+% =========================================================
+
+\subsection{Model scope}
+
+The implemented thermal module reports the local adiabatic-wall temperature,
+\(T_{aw}(x)\), and a Bartz gas-side heat-transfer coefficient, \(h_g(x)\). The
+coefficient is retained as a diagnostic indicator of where gas-side convective
+coupling would be strongest; it is not combined with an independently prescribed
+wall temperature. Thermophysical properties are supplied by RocketCEA and mapped
+onto the quasi-one-dimensional flow reconstruction.
+
+No conjugate wall-conduction, coolant or ablative model is solved. The adopted
+gas-side boundary condition is therefore adiabatic,
+\begin{equation}
+\boxed{T_w(x)=T_{aw}(x)},
+\qquad
+\boxed{q''_w(x)=0}.
+\label{eq:thermal_adiabatic_wall}
+\end{equation}
+Consequently, the thermal output must not be interpreted as a prediction of material
+temperature or cooling-system heat load.
+
+\subsection{Adiabatic wall temperature and recovery factor}
+
+For the fully turbulent closure, the local recovery factor is derived from the local
+edge Prandtl number,
+\begin{equation}
+r_f(x)=Pr_e(x)^{1/3}.
+\label{eq:recovery_factor}
+\end{equation}
+The edge Prandtl number is obtained by interpolation of the RocketCEA chamber,
+throat and exit transport values; it is not a user input. The adiabatic-wall
+temperature is then
+\begin{equation}
+\boxed{
+T_{aw}(x)=T_e(x)
+\left[
+1+r_f(x)\frac{\gamma_e(x)-1}{2}M_e(x)^2
+\right]
+}.
+\label{eq:adiabatic_wall_temperature}
+\end{equation}
+This recovery-temperature condition is also used by the compressible
+boundary-layer closures. The associated adiabatic Walz temperature--velocity
+relation is developed in Sections~\ref{sec:integral_boundary_layer}
+and~\ref{sec:blimp_cebeci_smith} \cite{Walz}.
+
+\subsection{Diagnostic Bartz heat-transfer coefficient}
+
+The gas-side convective heat-transfer coefficient is estimated using the simplified
+Bartz correlation \cite{Bartz},
+\begin{equation}
+\begin{split}
+h_g(x)={}&
+\frac{0.026}{D_t^{0.2}}
+\frac{\mu_t^{0.2}c_{p,t}}{Pr_t^{0.6}}
+\left(\frac{p_c}{c^*}\right)^{0.8}
+\left(\frac{D_t}{R_{c,t}}\right)^{0.1}
+\left(\frac{A_t}{A(x)}\right)^{0.9}
+\sigma(x),
+\end{split}
+\label{eq:bartz_hg}
+\end{equation}
+where \(D_t=2r_t\), \(R_{c,t}=0.4r_t\) is the divergent throat-arc
+radius, and \(\mu_t\), \(c_{p,t}\) and \(Pr_t\) are evaluated at the
+throat. The local area ratio follows directly from the generated contour,
+\begin{equation}
+\frac{A_t}{A(x)}=\left(\frac{r_t}{r(x)}\right)^2.
+\end{equation}
+
+The Bartz correction factor is evaluated consistently with the adiabatic wall,
+\begin{equation}
+\begin{split}
+\sigma(x)={}&
+\left[
+\frac{1}{2}
+\frac{T_{aw}(x)}{T_0}
+\left(1+\frac{\gamma_e(x)-1}{2}M_e(x)^2\right)
++\frac{1}{2}
+\right]^{-0.68}
+\\
+&\times
+\left(1+\frac{\gamma_e(x)-1}{2}M_e(x)^2\right)^{-0.12}.
+\end{split}
+\label{eq:bartz_sigma}
+\end{equation}
+Although \(h_g\) generally peaks near the throat and remains useful for comparing
+the spatial intensity of convective coupling, the present adiabatic boundary
+condition gives
+\begin{equation}
+q''_g(x)=h_g(x)\left[T_{aw}(x)-T_w(x)\right]=0.
+\label{eq:convective_heat_flux}
+\end{equation}
+
+\subsection{Interpretation of the adiabatic result}
+
+Setting \(T_w=T_{aw}\) closes the gas-side boundary-layer problem without inventing
+a geometry-independent solid temperature. It does not imply that a real nozzle is
+thermally insulated, nor does it predict that the physical wall reaches the reported
+temperature. A non-zero heat flux requires an additional thermal boundary condition
+and a model that determines \(T_w\), for example conduction through the nozzle wall
+coupled to regenerative, film or ablative cooling.
+
+The current model omits wall thickness and material properties, transient energy
+storage, radiation, coolant-channel geometry and coolant-side heat transfer. It
+therefore supports aerodynamic preliminary design only. Thermal sizing and material
+selection require a conjugate thermal model or experimental data after the geometry
+has been defined.

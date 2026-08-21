@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rocket-nozzle-simulator"
+version = "0.2.0"
+description = "Desktop bell-nozzle geometry, RocketCEA, flow, thermal and boundary-layer simulator"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [{name = "Rafael Lino"}]
+keywords = ["rocket", "nozzle", "RocketCEA", "bell nozzle", "aerospace"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+  "numpy>=2.0",
+  "scipy>=1.14",
+  "matplotlib>=3.9",
+  "rocketcea>=1.2.1",
+  "PyGAD>=3.7",
+  "customtkinter>=5.2,<6",
+]
+
+[project.scripts]
+nozzle-simulator = "nozzle_simulator.app:main"
+nozzle-simulator-modern = "nozzle_simulator.custom_app:main"
+
+[tool.setuptools.packages.find]
+include = ["nozzle_simulator*", "method_of_caracteristics*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["legacy"]

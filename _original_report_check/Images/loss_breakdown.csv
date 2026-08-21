@@ -1,0 +1,5 @@
+mechanism,baseline,optimized
+Divergence,0.0016533110,0.0000343206
+BL_blockage,0.0059396814,0.0050527907
+Wall_friction,0.0176461627,0.0143091377
+Ambient_mismatch,0.0128392453,0.0000000000

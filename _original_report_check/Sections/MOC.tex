@@ -1,0 +1,1640 @@
+% =========================================================
+\section{Axisymmetric Method of Characteristics for
+Supersonic Wave Analysis}
+\label{sec:moc}
+% =========================================================
+
+\subsection{Motivation}
+
+The baseline quasi-one-dimensional model provides a computationally
+efficient description of the mean nozzle expansion. However, repeated
+optimization runs revealed limitations that are important when the
+bell fraction $K_b$ and the initial divergent wall angle
+$\theta_{in}$ are treated as design variables.
+
+The main limitations of the quasi-one-dimensional formulation are:
+
+\begin{enumerate}
+    \item it cannot resolve the propagation and interaction of
+    two-dimensional expansion and compression waves;
+
+    \item it assumes that the flow properties are uniform over each
+    cross-section;
+
+    \item it does not resolve the radial distribution of Mach number,
+    pressure or flow angle at the nozzle exit;
+
+    \item the axial-momentum loss associated with flow angularity must
+    be approximated using an algebraic divergence-efficiency closure;
+
+    \item rapid wall turning and characteristic-wave coalescence are
+    not represented explicitly.
+\end{enumerate}
+
+These limitations produced the optimization behaviour discussed in
+Section~\ref{sec:results}. In particular, the reduced-order model could
+prefer very short contours because the viscous wall-friction penalty
+was represented, while the possible inviscid benefit of smoother wave
+turning and a more uniform exit flow was not resolved.
+
+To establish a direct relationship between $\theta_{in}$, $K_b$ and
+the internal supersonic flowfield, an axisymmetric Method of
+Characteristics (MOC) solver is introduced. The MOC is used here as a
+\emph{prescribed-wall analysis method}: the nozzle contour remains
+defined by the parametric geometry model, and the MOC calculates the
+flowfield inside that contour.
+
+For each candidate geometry, the required solution variables are
+
+\begin{equation}
+    p(x,r), \qquad
+    \rho(x,r), \qquad
+    V(x,r), \qquad
+    M(x,r), \qquad
+    T(x,r), \qquad
+    \theta(x,r).
+\end{equation}
+
+The MOC therefore does not replace the parametric bell-contour model.
+Instead, it evaluates the inviscid performance of the contour generated
+from the genetic-algorithm variables.
+
+% ---------------------------------------------------------
+\subsection{Physical interpretation of the characteristics}
+% ---------------------------------------------------------
+
+The Method of Characteristics is derived from the inviscid Euler
+equations. In a steady supersonic flow, the governing equations are
+hyperbolic. Consequently, information does not propagate arbitrarily
+through the domain. Infinitesimal pressure disturbances propagate along
+specific directions known as the \emph{characteristics} of the flow.
+
+For a local Mach number $M>1$, the Mach angle is
+
+\begin{equation}
+    \boxed{
+    \mu =
+    \arcsin\left(\frac{1}{M}\right)
+    }.
+    \label{eq:mach_angle}
+\end{equation}
+
+If the local velocity vector forms an angle $\theta$ with the nozzle
+axis, the two characteristic directions in the meridional $(x,r)$
+plane are
+
+\begin{equation}
+    \boxed{
+    \frac{dr}{dx}
+    =
+    \tan(\theta+\mu)
+    }
+    \qquad \text{along } C^+,
+    \label{eq:cplus_direction}
+\end{equation}
+
+and
+
+\begin{equation}
+    \boxed{
+    \frac{dr}{dx}
+    =
+    \tan(\theta-\mu)
+    }
+    \qquad \text{along } C^-.
+    \label{eq:cminus_direction}
+\end{equation}
+
+The streamline is tangent to the local velocity direction $\theta$,
+whereas the characteristics are inclined by the Mach angle $\mu$
+relative to that streamline. Characteristics should therefore not be
+confused with streamlines.
+
+The intersection of one $C^+$ characteristic and one $C^-$
+characteristic defines a new solution point. The position of the point
+is obtained from the intersection of the characteristic directions,
+while the local flow properties are obtained from the corresponding
+compatibility equations.
+
+
+% Replacement for the crowded four-panel Mach-angle/MOC figure.
+% Required packages/libraries (already loaded by publication_manuscript/main.tex):
+%   pdflscape, caption, tikz
+%   \usetikzlibrary{calc,arrows.meta,angles,quotes,positioning}
+
+\clearpage
+\begin{landscape}
+\thispagestyle{plain}
+\vspace{-1cm}
+\begin{center}
+\begin{minipage}{0.485\linewidth}
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  line cap=round,
+  line join=round,
+  >=Latex,
+  mainline/.style={black,line width=0.9pt},
+  auxiliary/.style={red!75!black,densely dashed,line width=0.75pt},
+  characteristic/.style={red!75!black,line width=1.05pt},
+  knownpoint/.style={circle,fill=black,inner sep=2.2pt}
+]
+\path[use as bounding box] (-0.2,-0.2) rectangle (11.8,7.0);
+
+\node[font=\bfseries\large,align=center] at (5.8,6.65)
+  {(a) Geometrical origin of the Mach angle};
+
+\coordinate (O) at (1.35,3.55);
+\coordinate (D) at (6.15,3.55);
+\coordinate (T) at (1.89,5.10);
+
+\draw[red!75!black,line width=0.9pt] (O) circle (1.65);
+\node[red!75!black,align=center] at (1.30,5.65)
+  {acoustic wavefront\\after $\Delta t$};
+
+\draw[mainline,->] (O) -- (D)
+  node[midway,below=3pt] {$V\,\Delta t$};
+\draw[auxiliary] (O) -- (T)
+  node[midway,left=2pt] {$a\,\Delta t$};
+\draw[characteristic] (D) -- (T);
+\node[red!75!black,rotate=-20] at (4.05,4.62)
+  {Mach-wave envelope};
+
+\node[knownpoint] at (O) {};
+\node[knownpoint] at (D) {};
+\node[knownpoint] at (T) {};
+\node[below left=1pt] at (O) {$O$};
+\node[below=2pt,align=center] at (D) {disturbance\\after $\Delta t$};
+\node[above=2pt] at (T) {$T$};
+
+\draw[mainline,->] (D) -- ++(1.25,0) node[right] {$\vec V$};
+\pic[draw=black,angle radius=4mm] {right angle=D--T--O};
+\pic[draw=red!75!black,"$\mu$",angle eccentricity=1.45,
+  angle radius=8mm] {angle=T--D--O};
+
+\node[draw=black,rounded corners,align=center,inner sep=6pt,
+  text width=3.55cm] at (9.95,3.55)
+{
+  The triangle $OTD$ is right-angled at $T$:\\[2mm]
+  $\displaystyle
+    \sin\mu=\frac{OT}{OD}
+    =\frac{a\Delta t}{V\Delta t}
+    =\frac{1}{M}$
+  \\[2mm]
+  $\displaystyle
+    \boxed{\mu=\arcsin\!\left(\frac{1}{M}\right)}$
+};
+\end{tikzpicture}%
+}
+\end{minipage}
+\hfill
+\begin{minipage}{0.485\linewidth}
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  line cap=round,
+  line join=round,
+  >=Latex,
+  mainline/.style={black,line width=0.9pt},
+  characteristic/.style={red!75!black,line width=1.05pt},
+  characteristicplus/.style={red!75!black,dashed,line width=1.05pt},
+  knownpoint/.style={circle,fill=black,inner sep=2.2pt}
+]
+\path[use as bounding box] (-0.2,-0.2) rectangle (11.8,7.0);
+
+\node[font=\bfseries\large,align=center] at (5.8,6.65)
+  {(b) Characteristic directions at a flow point};
+\node[align=center,text width=10.8cm] at (8.8,5.85)
+  {A pressure disturbance can only propagate along the two local Mach directions.};
+
+\coordinate (A) at (2.05,3.25);
+\draw[mainline,->] (0.45,3.25) -- (6.95,3.25) node[right] {$x$};
+\node[knownpoint] at (A) {};
+\node[below left=2pt] at (A) {$A$};
+
+\draw[mainline,->] (A) -- ++(18:3.45) node[right] {$\vec V_A$};
+\draw[characteristicplus,->] (A) -- ++(48:3.30)
+  node[above right] {$C^+$};
+\draw[characteristic,->] (A) -- ++(-12:3.65)
+  node[below right] {$C^-$};
+
+\draw[black] ($(A)+(0.72,0)$)
+  arc[start angle=0,end angle=18,radius=0.72];
+\node at ($(A)+(0.96,0.18)$) {$\theta_A$};
+
+\draw[red!75!black] ($(A)+(18:1.08)$)
+  arc[start angle=18,end angle=48,radius=1.08];
+\node[red!75!black] at ($(A)+(35:1.40)$) {$\mu_A$};
+
+\draw[red!75!black] ($(A)+(18:0.96)$)
+  arc[start angle=18,end angle=-12,radius=0.96];
+\node[red!75!black] at ($(A)+(1:1.30)$) {$\mu_A$};
+
+\node[draw=black,rounded corners,align=left,inner sep=7pt,
+  text width=3.70cm] at (9.65,3.15)
+{
+  Flow direction:\quad $\theta_A$\\[2mm]
+  Upper characteristic:\quad $\theta_A+\mu_A$\\[2mm]
+  Lower characteristic:\quad $\theta_A-\mu_A$
+};
+\end{tikzpicture}%
+}
+\end{minipage}
+
+\vspace{0.55cm}
+
+\begin{minipage}{0.485\linewidth}
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  line cap=round,
+  line join=round,
+  >=Latex,
+  mainline/.style={black,line width=0.9pt},
+  auxiliary/.style={red!75!black,densely dashed,line width=0.75pt},
+  characteristic/.style={red!75!black,line width=1.05pt},
+  knownpoint/.style={circle,fill=black,inner sep=2.2pt},
+  newpoint/.style={circle,draw=black,fill=white,line width=1pt,inner sep=3.2pt}
+]
+\path[use as bounding box] (-0.2,-0.2) rectangle (11.8,7.0);
+
+\node[font=\bfseries\large,align=center] at (5.8,6.65)
+  {(c) Point--slope equation of one characteristic};
+\node[align=center,text width=10.8cm] at (5.8,5.88)
+  {The horizontal and vertical legs are coordinate differences, not new flow properties.};
+
+\draw[mainline,->] (0.45,1.00) -- (6.65,1.00) node[right] {$x$};
+\draw[mainline,->] (0.70,0.70) -- (0.70,5.45) node[above] {$r$};
+
+\coordinate (A) at (1.45,4.80);
+\coordinate (P) at (5.80,1.75);
+\coordinate (H) at (5.80,4.80);
+
+\draw[characteristic,->] (A) -- (P)
+  node[midway,below,sloped] {$C^-$ characteristic};
+\draw[auxiliary] (A) -- (H);
+\draw[auxiliary] (H) -- (P);
+
+\draw[gray,densely dotted] (A) -- (1.45,1.00);
+\draw[gray,densely dotted] (P) -- (5.80,1.00);
+\draw[gray,densely dotted] (A) -- (0.70,4.80);
+\draw[gray,densely dotted] (P) -- (0.70,1.75);
+
+\node[knownpoint] at (A) {};
+\node[newpoint] at (P) {};
+\node[knownpoint] at (H) {};
+\node[above left=2pt] at (A) {$A=(x_A,r_A)$};
+\node[below right=2pt] at (P) {$(x,r)$};
+\node[above right=1pt] at (H) {$H=(x,r_A)$};
+
+\draw[<->,black,line width=0.8pt] ($(A)+(0,-0.40)$) --
+  ($(H)+(0,-0.40)$)
+  node[midway,fill=white,inner sep=2pt] {$x-x_A$};
+\draw[<->,black,line width=0.8pt] ($(H)+(0.42,0)$) --
+  ($(P)+(0.42,0)$)
+  node[midway,right=3pt,align=left] {$r-r_A$\\[-1mm]$(<0)$};
+
+\draw[red!75!black] ($(A)+(0.78,0)$)
+  arc[start angle=0,end angle=-35.0,radius=0.78];
+\node[red!75!black] at ($(A)+(0.92,-0.58)$) {$\alpha_A$};
+
+\node[draw=black,rounded corners,align=center,inner sep=7pt,
+  text width=4.15cm] at (9.15,3.10)
+{
+  $\displaystyle
+  \text{slope}
+  =\frac{\text{vertical change}}{\text{horizontal change}}
+  =\frac{r-r_A}{x-x_A}
+  =\tan\alpha_A$
+  \\[2mm]
+  Since $\alpha_A=\theta_A-\mu_A$,\\[1mm]
+  $\displaystyle
+  \boxed{r-r_A=\tan(\theta_A-\mu_A)(x-x_A)}$
+};
+\end{tikzpicture}%
+}
+\end{minipage}
+\hfill
+\begin{minipage}{0.485\linewidth}
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  line cap=round,
+  line join=round,
+  >=Latex,
+  mainline/.style={black,line width=0.9pt},
+  characteristic/.style={red!75!black,line width=1.05pt},
+  characteristicplus/.style={red!75!black,dashed,line width=1.05pt},
+  knownpoint/.style={circle,fill=black,inner sep=2.2pt},
+  newpoint/.style={circle,draw=black,fill=white,line width=1pt,inner sep=3.2pt}
+]
+\path[use as bounding box] (-0.2,-0.2) rectangle (11.8,7.0);
+
+\node[font=\bfseries\large,align=center] at (5.8,6.65)
+  {(d) Creation of a new MOC point};
+
+\draw[gray,densely dotted,line width=0.9pt]
+  (1.00,1.10) -- (1.00,5.55);
+\node[rotate=90] at (0.68,3.30) {known line};
+
+\coordinate (A) at (1.00,5.05);
+\coordinate (B) at (1.00,1.60);
+\coordinate (P) at (5.40,3.25);
+
+\node[knownpoint] at (A) {};
+\node[knownpoint] at (B) {};
+\node[newpoint] at (P) {};
+\node[left=3pt] at (A) {$A$};
+\node[left=3pt] at (B) {$B$};
+\node[above right=2pt] at (P) {$P=(x_P,r_P)$};
+
+\draw[characteristic,->] (A) -- (P)
+  node[midway,above,sloped] {$C^-$};
+\draw[characteristicplus,->] (B) -- (P)
+  node[midway,below,sloped] {$C^+$};
+\draw[mainline,->] (P) -- ++(1.05,0.20) node[right] {$\vec V_P$};
+
+\node[red!75!black,align=center] at (3.05,5.05)
+  {$m_A=\tan(\theta_A-\mu_A)$};
+\node[red!75!black,align=center] at (3.05,1.48)
+  {$m_B=\tan(\theta_B+\mu_B)$};
+
+\node[draw=black,rounded corners,align=center,inner sep=7pt,
+  text width=4.35cm] at (9.05,3.35)
+{
+  The two characteristic equations are
+  \[
+    r-r_A=m_A(x-x_A),\qquad
+    r-r_B=m_B(x-x_B).
+  \]
+  At the intersection, both have the same $x=x_P$ and $r=r_P$:
+  \[
+    \boxed{x_P=
+    \frac{r_B-r_A+m_Ax_A-m_Bx_B}{m_A-m_B}}
+  \]
+  \vspace{-2mm}
+  \[
+    \boxed{r_P=r_A+m_A(x_P-x_A)}.
+  \]
+};
+\end{tikzpicture}%
+}
+\end{minipage}
+
+\vspace{0.35cm}
+
+\captionof{figure}{%
+Geometrical interpretation of the Mach angle and construction of a new
+Method-of-Characteristics point. 
+}
+\label{fig:mach_angle_characteristic_geometry}
+\end{center}
+
+\end{landscape}
+\clearpage
+% ---------------------------------------------------------
+\subsection{Characteristic compatibility equations}
+% ---------------------------------------------------------
+
+The characteristic directions alone determine where information
+propagates, but they do not determine how the flow variables change.
+The required additional relations are the
+\emph{compatibility equations}.
+
+A compatibility equation expresses the combinations of pressure,
+velocity and flow angle that must be satisfied between two points
+belonging to the same characteristic.
+
+A convenient pressure-based axisymmetric formulation is
+
+\begin{equation}
+    Q\,dp+d\theta+S_+\,dx=0
+    \qquad \text{along } C^+,
+    \label{eq:compatibility_plus}
+\end{equation}
+
+and
+
+\begin{equation}
+    Q\,dp-d\theta+S_-\,dx=0
+    \qquad \text{along } C^-,
+    \label{eq:compatibility_minus}
+\end{equation}
+
+where
+
+\begin{equation}
+    Q
+    =
+    \frac{\sqrt{M^2-1}}{\rho V^2},
+    \label{eq:moc_Q}
+\end{equation}
+
+and
+
+\begin{equation}
+    S_\pm
+    =
+    \frac{\sin\theta}
+    {rM\cos(\theta\pm\mu)}.
+    \label{eq:moc_axisymmetric_source}
+\end{equation}
+
+The terms $S_+$ and $S_-$ represent the axisymmetric correction caused
+by the changing circumference of the streamtube. They vanish in the
+planar-flow limit.
+
+For a planar, isentropic and calorically perfect flow, the compatibility
+equations reduce to the familiar Prandtl--Meyer invariants
+
+\begin{equation}
+    d(\theta-\nu)=0
+    \qquad \text{along } C^+,
+\end{equation}
+
+and
+
+\begin{equation}
+    d(\theta+\nu)=0
+    \qquad \text{along } C^-,
+\end{equation}
+
+where $\nu=\nu(M)$ is the Prandtl--Meyer function:
+\begin{equation}
+\nu(M)
+=
+\sqrt{\frac{\gamma+1}{\gamma-1}}
+\tan^{-1}
+\left[
+\sqrt{
+\frac{\gamma-1}{\gamma+1}
+\left(M^2-1\right)
+}
+\right]
+-
+\tan^{-1}
+\left(
+\sqrt{M^2-1}
+\right).
+\label{eq:prandtl_meyer}
+\end{equation}
+In the axisymmetric formulation these quantities are no longer exactly
+constant, and the geometric source terms must be integrated numerically
+along each characteristic segment.
+
+The sign convention used in
+Equations~\eqref{eq:cplus_direction}--\eqref{eq:compatibility_minus}
+must remain consistent throughout the implementation. Alternative
+references may interchange the names $C^+$ and $C^-$.
+
+% ---------------------------------------------------------
+\subsection{Characteristic mesh and numerical marching}
+% ---------------------------------------------------------
+
+The MOC does not use a conventional rectangular computational grid.
+Instead, the numerical mesh is generated by the intersections of the
+$C^+$ and $C^-$ characteristic families.
+
+The solution begins from a transonic initial line located immediately
+downstream of the geometric . This line contains a discrete
+distribution of the form
+
+\begin{equation}
+    \left\{
+    x_i,\,
+    r_i,\,
+    p_i,\,
+    \rho_i,\,
+    V_i,\,
+    M_i,\,
+    \theta_i
+    \right\},
+    \qquad i=1,\ldots,N.
+\end{equation}
+
+Because the characteristic equations become degenerate at $M=1$, a
+uniform sonic line cannot be used directly. The initial data should be
+obtained from an axisymmetric transonic throat solution based on the
+local throat curvature.
+
+For an interior point $P$, one $C^+$ characteristic is traced from a
+known point $A$ and one $C^-$ characteristic from a known point $B$.
+Their approximate intersection provides the new coordinates
+$(x_P,r_P)$. The two compatibility equations then provide the local
+pressure and flow angle.
+
+Since the characteristic slopes depend on the unknown properties at
+$P$, the solution is obtained using a predictor--corrector procedure:
+
+\begin{enumerate}
+    \item calculate a first estimate using the properties at $A$ and
+    $B$;
+
+    \item evaluate the predicted properties at $P$;
+
+    \item recompute the characteristic slopes using averaged properties;
+
+    \item repeat until the changes in position and flow properties fall
+    below the prescribed convergence tolerance.
+\end{enumerate}
+
+Interpolation is required whenever the foot of a new characteristic
+falls between two nodes of the previous characteristic line. The resulting characteristic mesh and the local construction of an
+interior solution point are illustrated schematically in
+Figure~\ref{fig:prescribed_wall_moc_mesh}.
+
+\begin{figure}[htbp]
+\centering
+
+% =========================================================
+% (a) Global characteristic mesh
+% =========================================================
+
+\resizebox{0.98\textwidth}{!}{%
+\begin{tikzpicture}[
+    x=1.25cm,
+    y=1.25cm,
+    >=Latex,
+    wall/.style={very thick,draw=black},
+    axisline/.style={thick,draw=black},
+    cplus/.style={thin,dashed,draw=red!75!black},
+    cminus/.style={thin,draw=red!75!black},
+    initial/.style={thick,double,draw=black},
+    point/.style={circle,fill=black,inner sep=1.7pt}
+]
+
+% ---------------------------------------------------------
+% Coordinate system
+% ---------------------------------------------------------
+
+\draw[axisline,->]
+    (-1.25,0) -- (8.65,0)
+    node[right] {$x$};
+
+\draw[axisline,->]
+    (0,0) -- (0,4.65)
+    node[above] {$r$};
+
+\node[below] at (4.0,-0.14)
+    {axis of symmetry: $\theta=0$};
+
+% ---------------------------------------------------------
+% Prescribed nozzle wall
+% ---------------------------------------------------------
+
+% Convergent section
+\draw[wall]
+    (-1.15,2.65)
+    --
+    (-0.35,1.25);
+
+% Throat arc and bell contour
+\draw[wall]
+    plot[smooth] coordinates {
+        (-0.35,1.25)
+        (-0.12,1.04)
+        ( 0.00,1.00)
+        ( 0.25,1.08)
+        ( 0.65,1.30)
+        ( 1.15,1.55)
+        ( 2.00,1.85)
+        ( 3.00,2.12)
+        ( 4.20,2.40)
+        ( 5.50,2.66)
+        ( 6.75,2.86)
+        ( 8.00,3.00)
+    };
+
+\node[above left] at (-0.65,1.56)
+    {convergent};
+
+\node[above] at (4.45,2.78)
+    {prescribed parabolic contour $r_w(x)$};
+
+% ---------------------------------------------------------
+% Throat and exit
+% ---------------------------------------------------------
+
+\draw[densely dotted]
+    (0,0) -- (0,1.00);
+
+\node[point] at (0,1.00) {};
+\node[above left] at (0,0.500)
+    {throat};
+
+\draw[densely dotted]
+    (8.00,0) -- (8.00,3.00);
+
+\node[above] at (8.00,3.05)
+    {exit plane};
+
+% ---------------------------------------------------------
+% Initial transonic line
+% ---------------------------------------------------------
+
+\draw[initial]
+    (0.24,1.075) -- (0.58,0);
+
+
+% ---------------------------------------------------------
+% C-minus characteristics
+% Solid red lines: wall towards axis
+% ---------------------------------------------------------
+
+\draw[cminus]
+    (0.24,1.075) -- (1.35,0);
+
+\draw[cminus]
+    (1.15,1.55) -- (2.45,0);
+
+\draw[cminus]
+    (2.00,1.85) -- (3.65,0);
+
+\draw[cminus]
+    (3.00,2.12) -- (4.90,0);
+
+\draw[cminus]
+    (4.20,2.40) -- (6.20,0);
+
+\draw[cminus]
+    (5.50,2.66) -- (7.55,0);
+
+\draw[cminus]
+    (6.75,2.86) -- (8.00,1.55);
+
+% ---------------------------------------------------------
+% C-plus characteristics
+% Dashed red lines: axis towards wall
+% ---------------------------------------------------------
+
+\draw[cplus]
+    (0.58,0) -- (1.15,1.55);
+
+\draw[cplus]
+    (1.35,0) -- (2.00,1.85);
+
+\draw[cplus]
+    (2.45,0) -- (3.00,2.12);
+
+\draw[cplus]
+    (3.65,0) -- (4.20,2.40);
+
+\draw[cplus]
+    (4.90,0) -- (5.50,2.66);
+
+\draw[cplus]
+    (6.20,0) -- (6.75,2.86);
+
+\draw[cplus]
+    (7.55,0) -- (8.00,2.45);
+
+% ---------------------------------------------------------
+% Wall tangency
+% ---------------------------------------------------------
+
+\node[point] (W) at (4.20,2.40) {};
+
+\draw[->,thick]
+    (W) -- ++(0.90,0.18)
+    node[below] {$\vec V_w$};
+
+\node[
+    fill=white,
+    inner sep=1pt
+] at (4.2,2.07)
+    {$\theta=\theta_w$};
+
+% ---------------------------------------------------------
+% Flow direction
+% ---------------------------------------------------------
+
+\draw[->,very thick]
+    (6.30,1.20) -- (7.35,1.20)
+    node[midway,above] {flow};
+
+% ---------------------------------------------------------
+% Legend
+% ---------------------------------------------------------
+
+\begin{scope}[shift={(0.15,3.38)}]
+
+    \draw[cminus]
+        (0,1) -- (0.40,1);
+
+    \node[right] at (0.45,1)
+        {$C^-$ characteristic};
+
+    \draw[cplus]
+        (2.90,1) -- (3.30,1);
+
+    \node[right] at (3.35,1)
+        {$C^+$ characteristic};
+
+    \draw[initial]
+        (5.70,1) -- (6.10,1);
+        
+    \node[right] at (6.15,1)
+        {transonic initial line};
+\end{scope}
+
+% Panel identifier
+\node[anchor=north west,font=\bfseries]
+    at (-1.15,-0.42) {(a)};
+
+\end{tikzpicture}%
+}
+
+\vspace{0.7cm}
+
+% =========================================================
+% (b) Close-up of one characteristic intersection
+% =========================================================
+
+\resizebox{0.76\textwidth}{!}{%
+\begin{tikzpicture}[
+    x=1.45cm,
+    y=1.25cm,
+    >=Latex,
+    cplus/.style={very thick,dashed,draw=red!75!black},
+    cminus/.style={very thick,draw=red!75!black},
+    knownpoint/.style={
+        circle,
+        fill=black,
+        inner sep=2.3pt
+    },
+    newpoint/.style={
+        circle,
+        draw=black,
+        very thick,
+        fill=white,
+        inner sep=3.2pt
+    }
+]
+
+% ---------------------------------------------------------
+% Previous characteristic/data line
+% ---------------------------------------------------------
+
+\draw[thick,densely dotted]
+    (0,0.35) -- (0,3.20);
+
+\node[
+    rotate=90,
+    above,
+    align=center
+]
+at (-0.12,1.75)
+{\footnotesize previous known\\line};
+
+% ---------------------------------------------------------
+% Known points A and B
+% ---------------------------------------------------------
+
+\node[knownpoint] (A) at (0,2.75) {};
+\node[left=3pt of A]
+    {$A$};
+
+\node[knownpoint] (B) at (0,0.75) {};
+\node[left=3pt of B]
+    {$B$};
+
+\node[align=right,anchor=east]
+    at (-0.20,2.75)
+{
+$\left(x_A,r_A,p_A,M_A,\theta_A\right)$
+};
+
+\node[align=right,anchor=east]
+    at (-0.20,0.75)
+{
+$\left(x_B,r_B,p_B,M_B,\theta_B\right)$
+};
+
+% ---------------------------------------------------------
+% New point P
+% ---------------------------------------------------------
+
+\node[newpoint] (P) at (3.00,1.65) {};
+
+\node[above right=2pt and 3pt of P]
+    {$P$};
+
+% C-minus from A
+\draw[cminus,->]
+    (A) -- (P)
+    node[midway,above,sloped]
+    {$C^-$};
+
+% C-plus from B
+\draw[cplus,->]
+    (B) -- (P)
+    node[midway,below,sloped]
+    {$C^+$};
+
+% ---------------------------------------------------------
+% Local characteristic directions
+% ---------------------------------------------------------
+
+\node[
+    align=center,
+    anchor=south
+] at (1.35,2.55)
+{
+slope:
+$\tan(\theta_A-\mu_A)$
+};
+
+\node[
+    align=center,
+    anchor=north
+] at (1.30,0.78)
+{
+slope:
+$\tan(\theta_B+\mu_B)$
+};
+
+% ---------------------------------------------------------
+% State calculation at P
+% ---------------------------------------------------------
+
+\draw[->,thick]
+    (3.15,1.65) -- (4.05,1.65);
+
+\node[
+    draw=black,
+    rounded corners,
+    align=left,
+    anchor=west,
+    inner sep=5pt
+] at (4.08,1.65)
+{
+\textbf{New solution point}\\[1mm]
+Geometry:
+$(x_P,r_P)$\\[1mm]
+Compatibility:
+$(p_P,\theta_P)$\\[1mm]
+Thermodynamics:
+$(\rho_P,V_P,M_P,T_P)$
+};
+
+% ---------------------------------------------------------
+% Compatibility labels
+% ---------------------------------------------------------
+
+\node[
+    align=center,
+    fill=white,
+    inner sep=2pt
+] at (1.500,3.87)
+{
+compatibility transported\\
+from point $A$
+};
+
+\node[
+    align=center,
+    fill=white,
+    inner sep=2pt
+] at (1.500,-0.72)
+{
+compatibility transported\\
+from point $B$
+};
+
+% ---------------------------------------------------------
+% Flow vector at P
+% ---------------------------------------------------------
+
+\draw[->,thick]
+    (P) -- ++(0.85,0.18)
+    node[above] {$\vec V_P$};
+
+% Panel identifier
+\node[anchor=north west,font=\bfseries]
+    at (-1.85,0.18) {(b)};
+
+\end{tikzpicture}%
+}
+
+\caption{
+Schematic representation of the axisymmetric Method of
+Characteristics used for prescribed-wall nozzle analysis.
+(a) Characteristic mesh inside the parametric bell-nozzle contour.
+The solid and dashed red lines represent the $C^-$ and $C^+$
+characteristic families, respectively.
+(b) Local construction of a new interior point $P$ from the
+intersection of two characteristics originating from the known
+points $A$ and $B$.
+}
+
+\label{fig:prescribed_wall_moc_mesh}
+
+\end{figure}
+
+As shown in Figure~\ref{fig:prescribed_wall_moc_mesh}(b), the
+coordinates $(x_P,r_P)$ are obtained from the intersection of the
+two characteristic directions. The local pressure and flow angle are
+then determined from the two compatibility equations. The remaining
+thermodynamic properties follow from the energy equation and the
+selected gas model.
+
+At the nozzle wall, the flow-tangency boundary condition is
+
+\begin{equation}
+    \boxed{
+    \theta_w
+    =
+    \arctan\left(\frac{dr_w}{dx}\right)
+    }.
+    \label{eq:moc_wall_condition}
+\end{equation}
+
+At the axis of symmetry,
+
+\begin{equation}
+    \boxed{
+    r=0,
+    \qquad
+    \theta=0
+    }.
+    \label{eq:moc_axis_condition}
+\end{equation}
+
+The $1/r$ dependence of the axisymmetric source term requires a
+dedicated limiting formulation at the axis. Direct evaluation of
+Equation~\eqref{eq:moc_axisymmetric_source} at $r=0$ is not permitted.
+
+The resulting characteristic mesh is illustrated in
+Figure~\ref{fig:prescribed_wall_moc_mesh}.
+
+% Insert the monochromatic TikZ figure here.
+
+
+\subsection{Axis-of-symmetry limiting treatment}
+\label{sec:moc_axis_treatment}
+
+The axis of symmetry requires a dedicated boundary formulation. The
+axisymmetric compatibility source terms,
+
+\begin{equation}
+S^\pm =
+\frac{\sin\theta}
+{rM\cos(\theta\pm\mu)},
+\label{eq:moc_axisymmetric_source_recalled}
+\end{equation}
+
+cannot be evaluated directly at \(r=0\), because the symmetry condition
+also imposes \(\theta=0\). Direct substitution would therefore produce
+the indeterminate form \(0/0\). This is a coordinate singularity rather
+than a physical singularity, and its finite limit follows from the
+regularity and parity of the flow variables near the axis.
+
+\subsubsection{Parity of the flow variables}
+
+To examine the local behaviour around the axis, the radial coordinate
+may temporarily be extended to a signed coordinate. Reflection across
+the axis corresponds to
+
+\begin{equation}
+r\longrightarrow-r.
+\end{equation}
+
+The scalar flow properties are unchanged by this reflection:
+
+\begin{equation}
+p(x,-r)=p(x,r),
+\qquad
+\rho(x,-r)=\rho(x,r),
+\end{equation}
+
+\begin{equation}
+T(x,-r)=T(x,r),
+\qquad
+M(x,-r)=M(x,r).
+\end{equation}
+
+The axial velocity component \(u\) is also unchanged,
+
+\begin{equation}
+u(x,-r)=u(x,r),
+\end{equation}
+
+whereas the radial velocity component \(v\) reverses direction:
+
+\begin{equation}
+v(x,-r)=-v(x,r).
+\end{equation}
+
+Consequently, \(u\) is locally an even function of \(r\), while \(v\)
+is locally an odd function. For a smooth solution, their Taylor
+expansions near \(r=0\) are therefore
+
+\begin{equation}
+u(x,r)
+=
+u_0(x)+u_2(x)r^2
++\mathcal{O}(r^4),
+\label{eq:axis_u_expansion}
+\end{equation}
+
+and
+
+\begin{equation}
+v(x,r)
+=
+v_1(x)r+v_3(x)r^3
++\mathcal{O}(r^5).
+\label{eq:axis_v_expansion}
+\end{equation}
+
+Since the local flow angle is defined by
+
+\begin{equation}
+\theta(x,r)
+=
+\tan^{-1}
+\left(
+\frac{v(x,r)}{u(x,r)}
+\right),
+\label{eq:flow_angle_velocity_definition}
+\end{equation}
+
+it is also an odd function of the radial coordinate:
+
+\begin{equation}
+\theta(x,-r)=-\theta(x,r).
+\end{equation}
+
+Its local Taylor expansion consequently contains only odd powers:
+
+\begin{equation}
+\boxed{
+\theta(x,r)
+=
+c_1(x)r+c_3(x)r^3
++\mathcal{O}(r^5)
+}.
+\label{eq:axis_theta_expansion}
+\end{equation}
+
+The coefficients in Equation~\eqref{eq:axis_theta_expansion} are not
+empirical loss coefficients. They are local derivatives of the
+axisymmetric flowfield. In particular,
+
+\begin{equation}
+\boxed{
+c_1(x)
+=
+\left.
+\frac{\partial\theta}{\partial r}
+\right|_{r=0}
+}.
+\label{eq:c1_axis_derivative}
+\end{equation}
+
+Expanding Equation~\eqref{eq:flow_angle_velocity_definition} using
+Equations~\eqref{eq:axis_u_expansion} and
+\eqref{eq:axis_v_expansion} gives
+
+\begin{equation}
+c_1(x)=\frac{v_1(x)}{u_0(x)},
+\end{equation}
+
+and
+
+\begin{equation}
+c_3(x)
+=
+\frac{v_3(x)}{u_0(x)}
+-
+\frac{v_1(x)u_2(x)}{u_0(x)^2}
+-
+\frac{1}{3}
+\left(
+\frac{v_1(x)}{u_0(x)}
+\right)^3.
+\end{equation}
+
+Equation~\eqref{eq:axis_theta_expansion} is only a local expansion
+around the axis. It does not assume that the complete radial flow-angle
+distribution is a cubic polynomial.
+
+\subsubsection{Finite limit of the axisymmetric source term}
+
+Using Equation~\eqref{eq:axis_theta_expansion}, the flow angle close to
+the axis satisfies
+
+\begin{equation}
+\sin\theta
+=
+c_1r+\mathcal{O}(r^3).
+\end{equation}
+
+It follows that
+
+\begin{equation}
+\lim_{r\rightarrow0}
+\frac{\sin\theta}{r}
+=
+c_1
+=
+\left.
+\frac{\partial\theta}{\partial r}
+\right|_{r=0}.
+\label{eq:sin_theta_over_r_limit}
+\end{equation}
+
+At the axis, \(\theta=0\), and therefore
+
+\begin{equation}
+\cos(\theta\pm\mu)
+\longrightarrow
+\cos(\pm\mu)
+=
+\cos\mu.
+\end{equation}
+
+The limiting value of Equation~
+\eqref{eq:moc_axisymmetric_source_recalled} is consequently
+
+\begin{equation}
+\boxed{
+S^\pm_{\mathrm{axis}}
+=
+\frac{1}
+{M_{\mathrm{axis}}\cos\mu_{\mathrm{axis}}}
+\left.
+\frac{\partial\theta}{\partial r}
+\right|_{r=0}
+}.
+\label{eq:S_axis_first_form}
+\end{equation}
+
+Since
+
+\begin{equation}
+\sin\mu_{\mathrm{axis}}
+=
+\frac{1}{M_{\mathrm{axis}}},
+\end{equation}
+
+then
+
+\begin{equation}
+M_{\mathrm{axis}}\cos\mu_{\mathrm{axis}}
+=
+\sqrt{M_{\mathrm{axis}}^2-1}.
+\end{equation}
+
+The axis limit can therefore also be written as
+
+\begin{equation}
+\boxed{
+S^\pm_{\mathrm{axis}}
+=
+\frac{1}
+{\sqrt{M_{\mathrm{axis}}^2-1}}
+\left.
+\frac{\partial\theta}{\partial r}
+\right|_{r=0}
+}.
+\label{eq:S_axis_final}
+\end{equation}
+
+The two characteristic families have the same limiting source term at
+the axis because
+
+\begin{equation}
+\cos(+\mu_{\mathrm{axis}})
+=
+\cos(-\mu_{\mathrm{axis}}).
+\end{equation}
+
+No artificial minimum radius is therefore required. Replacing \(r\)
+with \(\max(r,\varepsilon_r)\) would alter the compatibility equations
+and conceal the coordinate singularity instead of resolving it.
+
+\subsubsection{Construction of a characteristic point on the axis}
+
+Consider a known interior point
+
+\begin{equation}
+A=
+\left(
+x_A,r_A,p_A,M_A,\theta_A
+\right),
+\qquad r_A>0,
+\end{equation}
+
+from which a \(C^-\) characteristic reaches the axis at the new point
+
+\begin{equation}
+P=
+\left(
+x_P,0,p_P,M_P,0
+\right).
+\end{equation}
+
+The axis conditions provide
+
+\begin{equation}
+\boxed{
+r_P=0,
+\qquad
+\theta_P=0
+}.
+\label{eq:moc_axis_conditions}
+\end{equation}
+
+The \(C^-\) characteristic direction is
+
+\begin{equation}
+\frac{dr}{dx}
+=
+\tan(\theta-\mu).
+\end{equation}
+
+Using the properties at \(A\) as a first-order geometrical predictor,
+
+\begin{equation}
+-r_A
+=
+(x_P-x_A)
+\tan(\theta_A-\mu_A),
+\end{equation}
+
+which gives
+
+\begin{equation}
+\boxed{
+x_P
+=
+x_A
+-
+\frac{r_A}
+{\tan(\theta_A-\mu_A)}
+}.
+\label{eq:axis_point_predictor}
+\end{equation}
+
+The pressure-based \(C^-\) compatibility equation is
+
+\begin{equation}
+Q\,dp-d\theta+S^-\,dx=0.
+\label{eq:Cminus_axis_compatibility}
+\end{equation}
+
+A second-order finite-difference approximation between \(A\) and \(P\)
+is
+
+\begin{equation}
+\overline{Q}_{AP}(p_P-p_A)
+-
+(\theta_P-\theta_A)
++
+\overline{S^-}_{AP}(x_P-x_A)
+=
+0,
+\label{eq:axis_discrete_compatibility}
+\end{equation}
+
+where
+
+\begin{equation}
+\overline{Q}_{AP}
+=
+\frac{Q_A+Q_P}{2},
+\end{equation}
+
+and
+
+\begin{equation}
+\overline{S^-}_{AP}
+=
+\frac{S^-_A+S^-_{\mathrm{axis}}}{2}.
+\end{equation}
+
+Using \(\theta_P=0\), the axis pressure is obtained from
+
+\begin{equation}
+\boxed{
+p_P
+=
+p_A
+-
+\frac{
+\theta_A+
+\overline{S^-}_{AP}(x_P-x_A)
+}{
+\overline{Q}_{AP}
+}
+}.
+\label{eq:axis_pressure_update}
+\end{equation}
+
+Because \(Q_P\), \(S^-_{\mathrm{axis}}\), \(\mu_P\) and the corrected
+characteristic slope depend on the initially unknown state at \(P\),
+Equations~\eqref{eq:axis_point_predictor}--
+\eqref{eq:axis_pressure_update} are solved using the same
+predictor--corrector strategy employed for an interior characteristic
+point:
+
+\begin{enumerate}
+    \item predict \(x_P\) using the properties at \(A\);
+    \item impose \(r_P=0\) and \(\theta_P=0\);
+    \item predict \(p_P\) from the \(C^-\) compatibility equation;
+    \item calculate the remaining thermodynamic properties and obtain
+    \(M_P\) and \(\mu_P\);
+    \item evaluate the limiting source
+    \(S^-_{\mathrm{axis}}\);
+    \item recompute the characteristic geometry and averaged
+    compatibility coefficients;
+    \item repeat until both the position and flow properties converge.
+\end{enumerate}
+
+For the corrected geometry, the characteristic slope is averaged
+between \(A\) and \(P\):
+
+\begin{equation}
+-r_A
+=
+\frac{x_P-x_A}{2}
+\left[
+\tan(\theta_A-\mu_A)
++
+\tan(\theta_P-\mu_P)
+\right].
+\end{equation}
+
+Since \(\theta_P=0\),
+
+\begin{equation}
+\boxed{
+-r_A
+=
+\frac{x_P-x_A}{2}
+\left[
+\tan(\theta_A-\mu_A)
+-
+\tan\mu_P
+\right]
+}.
+\label{eq:axis_corrected_geometry}
+\end{equation}
+
+\subsubsection{Numerical estimation of the axis derivative}
+
+The derivative required by Equation~\eqref{eq:S_axis_final} should be
+estimated from interior points at the same axial characteristic station
+as the new axis point. Using the closest interior point \(Q_1\),
+
+\begin{equation}
+\left.
+\frac{\partial\theta}{\partial r}
+\right|_{r=0}
+\approx
+\frac{\theta_{Q_1}}{r_{Q_1}},
+\label{eq:axis_derivative_first_order}
+\end{equation}
+
+provides a first-order estimate.
+
+A higher-order estimate can be obtained from two interior points
+\(Q_1\) and \(Q_2\) by fitting the symmetry-preserving expansion
+
+\begin{equation}
+\theta(r)=c_1r+c_3r^3.
+\end{equation}
+
+The coefficients satisfy
+
+\begin{equation}
+\begin{bmatrix}
+r_{Q_1} & r_{Q_1}^3\\
+r_{Q_2} & r_{Q_2}^3
+\end{bmatrix}
+\begin{bmatrix}
+c_1\\
+c_3
+\end{bmatrix}
+=
+\begin{bmatrix}
+\theta_{Q_1}\\
+\theta_{Q_2}
+\end{bmatrix}.
+\label{eq:axis_odd_polynomial_fit}
+\end{equation}
+
+The required axis derivative is then
+
+\begin{equation}
+\boxed{
+\left.
+\frac{\partial\theta}{\partial r}
+\right|_{r=0}
+=
+c_1
+=
+\frac{
+r_{Q_2}^{\,2}\theta_{Q_1}/r_{Q_1}
+-
+r_{Q_1}^{\,2}\theta_{Q_2}/r_{Q_2}
+}{
+r_{Q_2}^{\,2}-r_{Q_1}^{\,2}
+}
+}.
+\label{eq:axis_derivative_second_order}
+\end{equation}
+
+Using a point located at a different axial coordinate, such as the
+incoming characteristic point \(A\), through the approximation
+\(\theta_A/r_A\), is acceptable only as an initial predictor. The
+converged axis derivative should be obtained from points belonging to
+the same downstream characteristic station.
+% ---------------------------------------------------------
+\subsection{Exit-plane thrust integration}
+% ---------------------------------------------------------
+
+The MOC provides a non-uniform radial flow profile at the nozzle exit.
+The local axial velocity is
+
+\begin{equation}
+    u_e(r)=V_e(r)\cos\theta_e(r).
+\end{equation}
+
+The exit mass flow rate is evaluated from
+
+\begin{equation}
+    \boxed{
+    \dot{m}_e
+    =
+    2\pi
+    \int_0^{R_e}
+    \rho_e(r)u_e(r)\,r\,dr
+    }.
+    \label{eq:moc_exit_massflow}
+\end{equation}
+
+The inviscid thrust is
+
+\begin{equation}
+    \boxed{
+    F_{\mathrm{MOC}}
+    =
+    2\pi
+    \int_0^{R_e}
+    \left[
+        \rho_e(r)u_e^2(r)
+        +
+        p_e(r)-p_a
+    \right]r\,dr
+    }.
+    \label{eq:moc_thrust}
+\end{equation}
+
+The corresponding inviscid thrust coefficient is
+
+\begin{equation}
+    \boxed{
+    C_{F,\mathrm{MOC}}
+    =
+    \frac{F_{\mathrm{MOC}}}{p_cA_t}
+    }.
+    \label{eq:moc_thrust_coefficient}
+\end{equation}
+
+Because the local velocity direction is resolved over the complete exit
+plane, the axial-momentum effect of flow divergence is already included
+in Equation~\eqref{eq:moc_thrust}. Consequently, a separate algebraic
+factor such as $\eta_{div}=\cos\theta_{out}$ is not required in the
+MOC-based evaluation.
+
+% ---------------------------------------------------------
+\subsection{Coupling with the boundary-layer model}
+% ---------------------------------------------------------
+
+The inviscid MOC solution supplies the boundary-layer edge conditions
+
+\begin{equation}
+    p_e(x),\qquad
+    T_e(x),\qquad
+    \rho_e(x),\qquad
+    V_e(x),\qquad
+    M_e(x)
+\end{equation}
+
+along the nozzle wall. These quantities are passed to the integral
+boundary-layer model, which calculates
+
+\begin{equation}
+    \tau_w(x),\qquad
+    C_f(x),\qquad
+    \delta^*(x).
+\end{equation}
+
+The axial wall-friction force is
+
+\begin{equation}
+    \boxed{
+    F_f
+    =
+    2\pi
+    \int_{x_t}^{x_e}
+    \tau_w(x)r_w(x)\,dx
+    }.
+    \label{eq:moc_wall_friction}
+\end{equation}
+
+The loss-corrected thrust coefficient is therefore
+
+\begin{equation}
+    \boxed{
+    C_{F,\mathrm{eff}}
+    =
+    \frac{F_{\mathrm{MOC}}-F_f}{p_cA_t}
+    }.
+    \label{eq:moc_effective_cf}
+\end{equation}
+
+Boundary-layer separation is not predicted by the inviscid MOC itself.
+Instead, the MOC provides the wall-pressure distribution and adverse
+pressure gradient required by the boundary-layer model. Separation is
+identified when the calculated wall shear stress approaches zero and
+changes sign,
+
+\begin{equation}
+    \tau_w \rightarrow 0,
+\end{equation}
+
+followed by
+
+\begin{equation}
+    \tau_w<0.
+\end{equation}
+
+% ---------------------------------------------------------
+\subsection{Shock detection and present limitations}
+% ---------------------------------------------------------
+
+The present MOC formulation assumes a continuous and shock-free
+supersonic flowfield. Compression characteristics may converge and
+eventually intersect. Such characteristic coalescence indicates that a
+smooth isentropic solution no longer exists and that a shock may form.
+
+Until a dedicated shock-fitting method is implemented, characteristic
+intersection is treated as a solver-failure condition rather than as a
+calculated post-shock solution. Therefore, the present model resolves
+smooth expansion and compression waves, but it does not yet calculate
+the downstream state across a finite-strength shock.
+
+The main assumptions of the present formulation are:
+
+\begin{enumerate}
+    \item steady axisymmetric flow;
+
+    \item inviscid core flow;
+
+    \item no swirl;
+
+    \item calorically perfect gas in the first implementation;
+
+    \item smooth supersonic solution without fitted shocks;
+
+    \item boundary-layer effects treated through a separate integral
+    model.
+\end{enumerate}
+
+% ---------------------------------------------------------
+\subsection{Numerical verification}
+% ---------------------------------------------------------
+
+Mass-flow conservation is used as a primary numerical diagnostic. The
+relative mass-flow residual is
+
+\begin{equation}
+    \boxed{
+    \varepsilon_{\dot m}
+    =
+    \left|
+    \frac{\dot m_e-\dot m_t}{\dot m_t}
+    \right|
+    }.
+    \label{eq:moc_mass_residual}
+\end{equation}
+
+A solution is accepted for optimization only when the mass-flow
+residual, local predictor--corrector residuals and mesh-quality criteria
+remain below their prescribed tolerances.
+
+Grid convergence is evaluated by successively refining both the initial
+characteristic line and the prescribed wall discretization. The
+quantities monitored during refinement include
+
+\begin{equation}
+    \dot m_e,\qquad
+    C_{F,\mathrm{MOC}},\qquad
+    p_e(r),\qquad
+    M_e(r),\qquad
+    \theta_e(r).
+\end{equation}
+

@@ -1,0 +1,566 @@
+
+% =========================================================
+\section{Genetic-Algorithm Optimization Framework}
+\label{sec:genetic_algorithm}
+% =========================================================
+
+\subsection{Optimization problem definition}
+
+The genetic algorithm searches the prescribed design space while retaining the engine
+operating point and pre-sizing quantities supplied by the user. The detailed
+quasi-one-dimensional, boundary-layer, performance and contour formulations are given
+in Sections~\ref{sec:3}--\ref{sec:geometry} and are not repeated here. Within the optimizer, these models are
+treated as a coupled candidate-evaluation function
+
+\begin{equation}
+\mathcal{S}:\left(\bm{q},\bm{x}_{fixed}\right)
+\longrightarrow
+C_{F,eff},
+\label{eq:coupled_candidate_evaluator}
+\end{equation}
+
+where \(\bm{q}\) is the chromosome and \(\bm{x}_{fixed}\) contains the quantities
+held constant during one optimization run.
+
+For every candidate, the simulator evaluates the required RocketCEA properties, the
+common physical models and the effective thrust coefficient defined in
+Eq.~\eqref{eq:effective_thrust_coefficient}. The genetic algorithm therefore operates
+on the same physical model used by the simulator rather than on an independent
+surrogate.
+
+The Bartz heat-transfer profile is omitted from the repeated fitness calculation
+because thermal loading is not part of the current objective. No wall-temperature
+input is passed to the evaluator: both boundary-layer closures use the locally derived
+adiabatic-wall temperature of Eq.~\eqref{eq:adiabatic_wall_temperature}.
+
+Two evaluation modes are exposed without changing the chromosome or GA operators.
+\emph{Quick screening} uses the weak integral closure of
+Section~\ref{sec:integral_boundary_layer}; \emph{BLIMP-lite} uses the profile marcher
+of Section~\ref{sec:blimp_cebeci_smith}. A solution obtained through Quick screening
+is regenerated and reported with BLIMP-lite before it is accepted as the selected
+geometry.
+
+% ---------------------------------------------------------
+\subsection{Chromosome and fixed quantities}
+% ---------------------------------------------------------
+
+\subsubsection{Chromosome definition}
+
+The implemented chromosome contains three real-valued genes:
+
+\begin{equation}
+\boxed{
+\bm{q}
+=
+\begin{bmatrix}
+\varepsilon & K_b & \theta_{in}
+\end{bmatrix}^{T}
+},
+\label{eq:implemented_chromosome}
+\end{equation}
+
+where \(\varepsilon\) is the exit-to-throat area ratio, \(K_b\) is the bell-length
+fraction and \(\theta_{in}\) is the initial divergent-wall angle. Their default search
+bounds are
+
+\begin{align}
+2.0&\leq\varepsilon\leq15.0,
+\label{eq:epsilon_gene_bounds}\\
+0.60&\leq K_b\leq1.00,
+\label{eq:bell_fraction_gene_bounds}\\
+20^\circ&\leq\theta_{in}\leq35^\circ.
+\label{eq:theta_in_gene_bounds}
+\end{align}
+
+All genes are represented as floating-point values. The limits can be changed directly
+from the optimization interface.
+
+The exit angle \(\theta_{out}\) is not a gene because it is a derived output of the
+contour model. The convergent angle \(\theta_{sub}\) is also excluded from the
+chromosome and remains fixed during the search.
+
+\subsubsection{Fixed quantities}
+
+The fixed input vector may be represented as
+
+\begin{equation}
+\bm{x}_{fixed}
+=
+\begin{bmatrix}
+p_c & O/F & p_a & r_t & D_c & \alpha & \theta_{sub}
+\end{bmatrix}^{T}.
+\label{eq:ga_fixed_inputs}
+\end{equation}
+
+The default values used by the interface are listed in
+Table~\ref{tab:ga_inputs_updated}.
+
+\begin{table}[htbp]
+\centering
+\caption{Default inputs and their roles during optimization.}
+\label{tab:ga_inputs_updated}
+\begin{tabular}{llll}
+\toprule
+Quantity & Symbol & Default value & GA status \\
+\midrule
+Chamber pressure          & \(p_c\)          & \(30\,\mathrm{bar}\)    & Fixed \\
+Mixture ratio             & \(O/F\)          & \(6.5\)                  & Fixed \\
+Ambient pressure          & \(p_a\)          & \(1.0\,\mathrm{atm}\)   & Fixed \\
+Expansion ratio           & \(\varepsilon\)  & \(5.6\)                  & Optimized \\
+Throat radius             & \(r_t\)          & \(0.01728\,\mathrm{m}\) & Fixed \\
+Chamber diameter          & \(D_c\)          & \(0.120\,\mathrm{m}\)  & Fixed \\
+Reference cone half-angle & \(\alpha\)       & \(15^\circ\)            & Fixed \\
+Bell-length fraction      & \(K_b\)          & \(0.80\)                 & Optimized \\
+Initial divergent angle   & \(\theta_{in}\)  & \(30^\circ\)            & Optimized \\
+Convergent angle          & \(\theta_{sub}\) & \(50^\circ\)            & Fixed \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The recovery factor is not included because it is derived locally from the
+interpolated RocketCEA Prandtl number rather than supplied as an independent input.
+Since \(\varepsilon\) is
+part of the chromosome, the exit properties returned by RocketCEA are candidate
+dependent and cannot be treated as a single common result for the complete population.
+
+% ---------------------------------------------------------
+\subsection{Fitness-function definition}
+% ---------------------------------------------------------
+
+The scalar objective maximized by the genetic algorithm is the effective ambient
+thrust coefficient introduced in Section~\ref{sec:loss_corrected_model}:
+
+\begin{equation}
+\boxed{
+J(\bm{q})
+=
+C_{F,eff}(\bm{q})
+}.
+\label{eq:implemented_ga_fitness}
+\end{equation}
+
+Explicitly,
+
+\begin{equation}
+J(\bm{q})
+=
+\eta_{div}(\bm{q})\eta_{BL}(\bm{q})
+C_{F,mom}^{CEA}(\bm{q})
++
+\varepsilon(\bm{q})
+\frac{p_e(\bm{q})-p_a}{p_c}
+-C_{F,fric}(\bm{q}).
+\label{eq:expanded_ga_fitness}
+\end{equation}
+
+The objective is maximized directly, so no sign inversion is required. It contains a
+loss-corrected momentum contribution, the signed ambient pressure-thrust contribution
+and integrated wall friction. It does not include additional empirical, mass,
+manufacturing-cost or thermal-limit penalties.
+
+% ---------------------------------------------------------
+\subsection{Candidate validation and constraint handling}
+% ---------------------------------------------------------
+
+The gene bounds in Eqs.~\eqref{eq:epsilon_gene_bounds}--%
+\eqref{eq:theta_in_gene_bounds} provide the first level of constraint enforcement.
+Each generated candidate is then passed to the common simulator validation and to the
+models defined in Sections~\ref{sec:3}--\ref{sec:geometry}. The geometric
+admissibility conditions are part of the contour model of
+Section~\ref{sec:geometry} and are not duplicated here.
+
+A candidate is rejected if the common simulator reports an invalid input, an invalid
+contour, a singular numerical system, a non-finite result or a non-positive effective
+thrust coefficient. Candidates classified as separated by RocketCEA are also rejected.
+
+Constraint handling uses a death-penalty strategy:
+
+\begin{equation}
+J_{GA}(\bm{q})
+=
+\begin{cases}
+C_{F,eff}(\bm{q}),
+&\text{valid, finite and attached-flow candidate},\\[1.5mm]
+0,
+&\text{otherwise}.
+\end{cases}
+\label{eq:ga_death_penalty}
+\end{equation}
+
+There is no continuous penalty proportional to the magnitude of a violation.
+
+% ---------------------------------------------------------
+\subsection{Genetic-algorithm configuration}
+% ---------------------------------------------------------
+
+The optimizer is implemented using PyGAD \cite{PyGAD}. Its default configuration is summarized in
+Table~\ref{tab:ga_configuration_updated}.
+
+\begin{table}[htbp]
+\centering
+\caption{Default configuration of the implemented genetic algorithm.}
+\label{tab:ga_configuration_updated}
+\begin{tabular}{ll}
+\toprule
+Parameter & Implemented value \\
+\midrule
+Chromosome representation & Three real-valued genes \\
+Population size & \(N_p=100\) individuals \\
+Maximum generations & \(G_{max}=300\) \\
+Mating parents & 20 \\
+Parent selection & Tournament selection \\
+Crossover & Uniform crossover \\
+Crossover probability & \(P_c=0.85\) \\
+Mutation & Adaptive mutation \\
+Adaptive mutation percentages & \([67\%,34\%]\) \\
+Elitism & Best three individuals \\
+Saturation limit & 40 generations \\
+Default evaluation mode & Four worker processes \\
+Repeated-candidate cache & Enabled \\
+Saved full solution history & No \\
+Explicit random seed & No \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The settings are user-configurable. The implemented validation requires
+
+\begin{equation}
+N_p\geq4,
+\qquad
+G_{max}\geq1,
+\qquad
+2\leq N_{parents}\leq N_p.
+\label{eq:minimum_ga_settings}
+\end{equation}
+
+\subsubsection{Tournament selection}
+
+Tournament selection gives preference to candidates with higher
+\(C_{F,eff}\) while preserving stochastic exploration. Candidate parents are sampled
+from the current population and the best member of each tournament is selected for
+reproduction. With the default settings, 20 parents participate in each generation.
+
+\subsubsection{Uniform crossover}
+
+Uniform crossover constructs each offspring by selecting each gene from either
+parent. For example, given
+
+\begin{align}
+\bm{q}^{(1)}
+&=
+\begin{bmatrix}
+\varepsilon^{(1)} & K_b^{(1)} & \theta_{in}^{(1)}
+\end{bmatrix}^{T},\\
+\bm{q}^{(2)}
+&=
+\begin{bmatrix}
+\varepsilon^{(2)} & K_b^{(2)} & \theta_{in}^{(2)}
+\end{bmatrix}^{T},
+\end{align}
+
+one possible offspring is
+
+\begin{equation}
+\bm{q}^{(o)}
+=
+\begin{bmatrix}
+\varepsilon^{(1)} & K_b^{(2)} & \theta_{in}^{(1)}
+\end{bmatrix}^{T}.
+\label{eq:uniform_crossover_example}
+\end{equation}
+
+Crossover is applied with probability \(P_c=0.85\).
+
+\subsubsection{Adaptive mutation}
+
+Adaptive mutation changes the mutation intensity according to candidate fitness. The
+configured percentages are
+
+\begin{equation}
+\bm{p}_m
+=
+\begin{bmatrix}
+67\% & 34\%
+\end{bmatrix}.
+\label{eq:adaptive_mutation_percentages}
+\end{equation}
+
+Lower-fitness candidates receive the larger mutation percentage, promoting
+exploration, while higher-fitness candidates receive the smaller percentage,
+promoting local refinement. For the three-gene chromosome, these percentages
+correspond approximately to mutating two genes and one gene, respectively. All
+mutations remain bounded by the defined gene spaces.
+
+\subsubsection{Elitism}
+
+The best three candidates are transferred directly to the following generation,
+
+\begin{equation}
+N_{\mathrm{elite}}=3.
+\label{eq:ga_elitism}
+\end{equation}
+
+These individuals are preserved without being subjected to crossover or mutation, ensuring that the highest-fitness nozzle geometries already identified by the optimizer are not lost through the stochastic genetic operators. Since only three individuals are retained from a population of 100, elitism preserves the best solutions while leaving most of the population available for continued exploration of the design space. 
+
+% ---------------------------------------------------------
+\subsection{Evaluation acceleration}
+% ---------------------------------------------------------
+
+The optimizer supports serial, threaded and multiprocess evaluation. The default mode
+uses a persistent pool of four worker processes. Each process receives an isolated
+RocketCEA working directory, preventing simultaneous Fortran evaluations from using
+the same temporary files.
+
+An exact-match fitness cache stores previously evaluated chromosomes. When an
+identical chromosome reappears, its stored fitness is reused. The ideal expansion
+ratio associated with the fixed values of \(p_c\), \(O/F\) and \(p_a\) is cached
+separately because it does not depend on the candidate chromosome.
+
+These measures reduce evaluation time without changing population generation,
+selection, crossover, mutation, elitism or stopping logic.
+
+% ---------------------------------------------------------
+\subsection{Stopping, cancellation and reported progress}
+% ---------------------------------------------------------
+
+The optimization terminates when the first of the following conditions is met:
+
+\begin{enumerate}
+    \item the maximum number of generations is reached;
+    \item the best fitness does not improve for the selected saturation interval,
+    equal to 40 generations by default;
+    \item the user requests cancellation through the interface.
+\end{enumerate}
+
+Cancellation is checked at the end of each generation. The current generation is
+therefore allowed to finish before execution stops.
+
+During execution, the interface displays the completed generation, percentage,
+elapsed time, estimated remaining time and generation rate. It also reports the best
+\(C_{F,eff}\) and the current chromosome. If no candidate with positive fitness is
+found, the optimization is declared unsuccessful.
+
+Otherwise, the returned result is
+
+\begin{equation}
+\bm{y}_{GA}
+=
+\begin{bmatrix}
+\varepsilon^* &
+K_b^* &
+\theta_{in}^* &
+\theta_{out}^* &
+p_e^* &
+C_{F,eff}^* &
+N_g
+\end{bmatrix}^{T},
+\label{eq:ga_output}
+\end{equation}
+
+where \(N_g\) is the number of completed generations. The ambient operating-mode
+classification is also retained. Because no explicit random seed is assigned,
+repeated runs with identical inputs may return slightly different chromosomes.
+
+
+\subsection{Algorithmic limitations and possible extensions}
+% ---------------------------------------------------------
+
+The implemented GA solves a single-objective, single-operating-point problem. It is
+stochastic and does not guarantee the global optimum. Its result also depends on the
+accuracy and validity range of the coupled simulator used to evaluate each chromosome.
+
+Future algorithmic extensions may include multi-objective optimization, robustness
+across several ambient pressures, explicit uncertainty propagation, repeated runs
+with controlled random seeds, convergence-statistics reporting and surrogate-assisted
+evaluation. Physical or geometric extensions should be introduced in their respective
+model sections and then exposed to the GA only through the chromosome, constraints or
+candidate-evaluation function.
+
+% ---------------------------------------------------------
+\subsection{Optimization workflow}
+% ---------------------------------------------------------
+
+Figure~\ref{fig:ga_workflow_updated} summarizes the implemented algorithm without
+repeating the internal formulations of the physical simulator.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    node distance=7mm and 18mm,
+    every node/.style={font=\small},
+    process/.style={
+        rectangle,
+        rounded corners,
+        draw,
+        align=center,
+        minimum width=45mm,
+        minimum height=8mm
+    },
+    decision/.style={
+        diamond,
+        draw,
+        aspect=2.1,
+        align=center,
+        inner sep=1.5pt
+    },
+    terminal/.style={
+        ellipse,
+        draw,
+        align=center,
+        minimum width=35mm,
+        minimum height=8mm
+    },
+    arrow/.style={
+        -{Latex[length=2mm]},
+        thick
+    }
+]
+
+% =========================================================
+% MAIN COLUMN
+% =========================================================
+
+\node[terminal] (start) {
+Start optimization
+};
+
+\node[process, below=of start] (settings) {
+Read fixed inputs, gene bounds\\
+and GA configuration
+};
+
+\node[process, below=of settings] (population) {
+Generate population\\
+\(\bm{q}=[\varepsilon,K_b,\theta_{in}]^T\)
+};
+
+\node[process, below=of population] (evaluate) {
+Evaluate candidates using the\\
+coupled simulator
+};
+
+\node[decision, below=of evaluate] (valid) {
+Valid, finite and\\
+attached solution?
+};
+
+\node[process, below=of valid] (fitness) {
+Assign\\
+\(J=C_{F,\mathrm{eff}}\)
+};
+
+\node[decision, below=of fitness] (all) {
+All candidates\\
+evaluated?
+};
+
+\node[process, below=of all] (progress) {
+Update best solution, progress\\
+and preserve elites
+};
+
+\node[decision, below=of progress] (stop) {
+Stopping criterion\\
+satisfied?
+};
+
+\node[terminal, below=of stop] (output) {
+Return best chromosome and performance
+};
+
+
+% =========================================================
+% RIGHT-HAND NODES
+% =========================================================
+
+\node[process, right=22mm of valid] (zero) {
+Assign \(J=0\)
+};
+
+\node[process, right=22mm of all] (next) {
+Evaluate next\\
+candidate
+};
+
+\node[process, right=22mm of stop] (reproduce) {
+Tournament selection, uniform\\
+crossover and adaptive mutation
+};
+
+
+% =========================================================
+% MAIN FLOW
+% =========================================================
+
+\draw[arrow] (start) -- (settings);
+\draw[arrow] (settings) -- (population);
+\draw[arrow] (population) -- (evaluate);
+\draw[arrow] (evaluate) -- (valid);
+
+% Validity decision
+\draw[arrow]
+    (valid) -- node[left]{Yes} (fitness);
+
+\draw[arrow]
+    (valid) -- node[above]{No} (zero);
+
+\draw[arrow]
+    (fitness) -- (all);
+
+
+% =========================================================
+% INVALID CANDIDATE:
+% DIRECTLY REJOINS THE "ALL CANDIDATES?" DECISION
+% =========================================================
+
+\draw[arrow]
+    (zero.south)
+    to[out=-105,in=25,looseness=1.05]
+    (all.25);
+
+
+% =========================================================
+% CANDIDATE LOOP
+% =========================================================
+
+\draw[arrow]
+    (all) -- node[left]{Yes} (progress);
+
+\draw[arrow]
+    (all) -- node[above]{No} (next);
+
+% Next candidate returns to evaluator
+\draw[thick]
+    (next.east)
+    -- (10.15,-11.58);
+
+
+% =========================================================
+% GENERATION LOOP
+% =========================================================
+
+\draw[arrow]
+    (progress) -- (stop);
+
+\draw[arrow]
+    (stop) -- node[left]{Yes} (output);
+
+\draw[arrow]
+    (stop) -- node[above]{No} (reproduce);
+
+% New generation returns to evaluator
+\draw[arrow]
+    (reproduce.east)
+    -- ++(10mm,0)
+    |- ([xshift=8mm]evaluate.east)
+    -- (evaluate.east);
+
+\end{tikzpicture}
+
+\caption{Flowchart of the implemented genetic-algorithm optimization.}
+\label{fig:ga_workflow_updated}
+\end{figure}
+
+% ---------------------------------------------------------
+

@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environments and packaging
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Generated simulator and optimizer results
+outputs/
+legacy/optimization_studies/Resultados/
+nozzle_geometry.csv
+mach_temp_pres_profile.csv
+thermal_profile.csv
+nozzle_friction*.csv
+pexit_vs_exp_*.csv
+
+# RocketCEA temporary/output files
+f.out
+temp.dat
+rocketcea_output.txt

@@ -1,0 +1,273 @@
+% =========================================================
+\section{Adiabatic BLIMP-Inspired Skin Friction Model}
+\label{sec:blimp_cebeci_smith}
+% =========================================================
+
+\subsection{Scope and modelling hierarchy}
+
+The nozzle boundary layer is evaluated with a reduced-order procedure inspired by
+the JANNAF BLIMP-J methodology (NASA-CR-144046) \cite{BLIMPJ}. The implementation is referred to
+here as \emph{BLIMP-lite}: it retains a wall-normal profile, axisymmetric continuity,
+the compressible thin-layer momentum equation and the Cebeci--Smith turbulent
+closure, but it does not reproduce BLIMP-J's chemically reacting energy and species
+equations and is not a reimplementation of BLIMP-J. It is intended for attached-flow preliminary design and geometry
+optimization at substantially lower cost than a RANS calculation.
+
+At each wall station, the quasi-one-dimensional core-flow model supplies the edge
+quantities
+
+\begin{equation}
+U_e(s),\quad p_e(s),\quad T_e(s),\quad \rho_e(s),\quad
+M_e(s),\quad \gamma_e(s),\quad \mu_e(s),\quad Pr_e(s),
+\end{equation}
+
+where \(s\) is distance along the wall and \(y\) is the inward wall-normal
+coordinate. RocketCEA chamber, throat and exit properties are interpolated locally.
+The wall contour supplies the axisymmetric radius \(r(s,y)\).
+
+\subsection{Adiabatic wall condition}
+
+Wall temperature is not prescribed as an arbitrary fixed input. Without a conjugate
+wall-conduction and coolant model, a fixed gas-side value cannot be predicted
+independently of the final geometry. The present gas-side calculation therefore
+adopts an adiabatic wall,
+
+\begin{equation}
+\boxed{T_w(s)=T_r(s)=T_{aw}(s)},
+\qquad
+\boxed{q_w(s)=0}.
+\label{eq:blimp_adiabatic_wall}
+\end{equation}
+
+For the fully turbulent closure, the local recovery factor and adiabatic-wall
+temperature are
+
+\begin{equation}
+r_f(s)=Pr_e(s)^{1/3},
+\label{eq:blimp_recovery_factor}
+\end{equation}
+
+\begin{equation}
+\boxed{
+T_{aw}(s)=T_e(s)
+\left[
+1+r_f(s)\frac{\gamma_e(s)-1}{2}M_e(s)^2
+\right]
+}.
+\label{eq:blimp_recovery_temperature}
+\end{equation}
+
+The wall-normal temperature profile is closed using the adiabatic Walz relation,
+
+\begin{equation}
+\boxed{
+T(s,y)=T_{aw}(s)-\left[T_{aw}(s)-T_e(s)\right]
+\left(\frac{u(s,y)}{U_e(s)}\right)^2
+}.
+\label{eq:blimp_walz_adiabatic}
+\end{equation}
+
+Equation~\eqref{eq:blimp_walz_adiabatic} satisfies \(T=T_{aw}\) and
+\(\partial T/\partial y=0\) at the wall, and \(T=T_e\) at the boundary-layer
+edge. Density is evaluated locally from
+
+\begin{equation}
+\rho(s,y)=\frac{p_e(s)}{R(s)T(s,y)},
+\label{eq:blimp_density}
+\end{equation}
+
+while molecular viscosity is obtained by log-interpolation of the RocketCEA
+transport values, with a mild temperature power-law extrapolation outside their
+tabulated interval.
+
+\subsection{Axisymmetric compressible boundary-layer equations}
+
+The thin-layer continuity equation is
+
+\begin{equation}
+\boxed{
+\frac{\partial}{\partial s}\!\left(\rho u r\right)
++
+\frac{\partial}{\partial y}\!\left(\rho v r\right)=0
+},
+\label{eq:blimp_continuity}
+\end{equation}
+
+and is integrated from the impermeable wall to obtain the normal velocity \(v\),
+with \(v_w=0\). The streamwise momentum equation is
+
+\begin{equation}
+\boxed{
+\rho u\frac{\partial u}{\partial s}
++\rho v\frac{\partial u}{\partial y}
+=-\frac{dp_e}{ds}
++\frac{1}{r}\frac{\partial}{\partial y}
+\left[
+r\left(\mu+\mu_t\right)\frac{\partial u}{\partial y}
+\right]
+}.
+\label{eq:blimp_momentum}
+\end{equation}
+
+The inviscid edge solution supplies the pressure-gradient forcing, equivalently
+
+\begin{equation}
+-\frac{dp_e}{ds}=\rho_eU_e\frac{dU_e}{ds}.
+\label{eq:blimp_edge_pressure_gradient}
+\end{equation}
+
+The boundary conditions are
+
+\begin{equation}
+u(s,0)=0,\qquad v(s,0)=0,\qquad
+u(s,y_e)=U_e(s),\qquad T(s,y_e)=T_e(s).
+\label{eq:blimp_boundary_conditions}
+\end{equation}
+
+\subsection{Cebeci--Smith turbulent closure}
+
+Reynolds shear is represented through the Boussinesq eddy-viscosity hypothesis,
+
+\begin{equation}
+-\rho\overline{u'v'}=\mu_t\frac{\partial u}{\partial y}.
+\label{eq:blimp_boussinesq}
+\end{equation}
+
+The inner Cebeci--Smith layer uses a Van-Driest-damped mixing length
+\cite{CebeciSmith,BLIMPVerification},
+
+\begin{equation}
+\ell=\kappa y
+\left[1-\exp\left(-\frac{y^+}{A^+}\right)\right],
+\qquad
+\kappa=0.40,\quad A^+=26,
+\label{eq:blimp_mixing_length}
+\end{equation}
+
+where
+
+\begin{equation}
+y^+=\frac{\rho_wu_\tau y}{\mu_w},
+\qquad
+u_\tau=\sqrt{\frac{\tau_w}{\rho_w}}.
+\label{eq:blimp_wall_units}
+\end{equation}
+
+The corresponding inner eddy viscosity is
+
+\begin{equation}
+\mu_{t,i}=\rho\ell^2
+\left|\frac{\partial u}{\partial y}\right|.
+\label{eq:blimp_inner_eddy_viscosity}
+\end{equation}
+
+The outer layer is represented by the displacement-thickness wake scale
+
+\begin{equation}
+\mu_{t,o}
+=0.0168\,\rho_eU_e\delta^*F_K(y),
+\label{eq:blimp_outer_eddy_viscosity}
+\end{equation}
+
+with the Klebanoff intermittency function
+
+\begin{equation}
+F_K(y)=
+\left[
+1+5.5\left(\frac{y}{6\delta^*}\right)^6
+\right]^{-1}.
+\label{eq:blimp_klebanoff}
+\end{equation}
+
+The two regions are joined algebraically according to
+
+\begin{equation}
+\boxed{\mu_t=\min\!\left(\mu_{t,i},\mu_{t,o}\right)}.
+\label{eq:blimp_eddy_join}
+\end{equation}
+
+Van Driest damping ensures \(\mu_t\rightarrow0\) at the wall. Consequently, wall
+shear is obtained from the resolved molecular gradient rather than from an imposed
+flat-plate skin-friction correlation:
+
+\begin{equation}
+\boxed{
+\tau_w=\mu_w\left.\frac{\partial u}{\partial y}\right|_w
+},
+\qquad
+\boxed{
+C_f=\frac{2\tau_w}{\rho_eU_e^2}
+}.
+\label{eq:blimp_skin_friction}
+\end{equation}
+
+Since \(y^+\), \(\mu_t\), the temperature-dependent properties and \(\tau_w\) are
+mutually dependent, they are updated iteratively at every streamwise station.
+
+\subsection{Integral thicknesses and viscous losses}
+
+The density-weighted compressible displacement and momentum thicknesses are
+
+\begin{equation}
+\boxed{
+\delta^*(s)=\int_0^{y_e}
+\left(1-\frac{\rho u}{\rho_eU_e}\right)dy
+},
+\label{eq:blimp_displacement_thickness}
+\end{equation}
+
+\begin{equation}
+\boxed{
+\theta(s)=\int_0^{y_e}
+\frac{\rho u}{\rho_eU_e}
+\left(1-\frac{u}{U_e}\right)dy
+},
+\label{eq:blimp_momentum_thickness}
+\end{equation}
+
+and \(H=\delta^*/\theta\). Displacement blockage is introduced through
+
+\begin{equation}
+r_{eff}(s)=r_w(s)-\delta^*(s),
+\qquad
+A_{eff}(s)=\pi r_{eff}(s)^2.
+\label{eq:blimp_effective_area}
+\end{equation}
+
+Skin friction is retained as a distinct axial force. Since
+\(dA_w=2\pi r\,ds\) and the axial tangent projection is \(dx/ds\),
+
+\begin{equation}
+\boxed{
+F_{fric}=\int_{x_c}^{x_e}2\pi r_w(x)\tau_w(x)\,dx
+},
+\qquad
+\boxed{
+C_{F,fric}=\frac{F_{fric}}{p_cA_t}
+}.
+\label{eq:blimp_friction_force}
+\end{equation}
+
+
+
+Blockage and wall shear are thus represented separately and are not hidden inside a
+single empirical efficiency.
+
+\subsection{Numerical procedure and limitations}
+
+The equations are marched implicitly over 61 streamwise stations. Each station uses
+41 wall-normal nodes clustered toward the wall. The continuity equation provides
+\(v(y)\); the momentum equation is discretized in conservative radial form; and
+Picard iterations update \(u\), \(T\), \(\rho\), \(\mu\), \(y^+\), \(\mu_t\) and
+\(\tau_w\). The converged integral quantities are interpolated onto the complete
+geometry grid. In a default-case grid comparison against 91 streamwise by 57
+wall-normal nodes, exit \(C_f\) and integrated \(C_{F,fric}\) changed by less than
+0.5\%, while exit \(\delta^*\) changed by approximately 4\%.
+
+The model assumes an attached, fully turbulent, axisymmetric boundary layer with no
+wall mass transfer. The inlet profile is an engineering initialization because the
+upstream chamber boundary-layer history is not otherwise available. Transition,
+relaminarization, shock--boundary-layer interaction and separated flow are not
+predicted. The adiabatic Walz relation \cite{Walz} replaces the full BLIMP-J reacting energy and
+species system. Cebeci--Smith is an algebraic equilibrium closure; final designs
+therefore still require mesh-refined RANS/CFD and experimental validation.

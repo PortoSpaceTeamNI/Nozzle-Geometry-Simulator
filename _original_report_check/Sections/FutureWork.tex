@@ -1,0 +1,38 @@
+\section{Limitations and Future Work}
+% =========================================================
+
+The present framework is a reduced-order, single-operating-point preliminary design
+tool. Its principal limitations are:
+\begin{itemize}
+    \item no method-of-characteristics or multidimensional wave analysis of the
+    parameterized contour;
+    \item no CFD-resolved shocks, separation or shock--boundary-layer interaction;
+    \item no finite-rate chemistry or station-by-station equilibrium/frozen transition;
+    \item interpolated RocketCEA properties used with local perfect-gas relations;
+    \item fully turbulent, attached-flow BLIMP-lite and Quick closures with an
+    engineering inlet boundary-layer initialization;
+    \item an adiabatic wall with no conjugate thermal, coolant, ablative or structural model;
+    \item no experimental calibration of \(\eta_{div}\), \(\eta_{BL}\) or
+    \(C_{F,fric}\);
+    \item a single objective and a single ambient pressure per optimization run.
+\end{itemize}
+
+Future work should prioritize:
+\begin{enumerate}
+    \item repeated seeded GA runs with convergence and uncertainty statistics;
+    \item comparison of Quick and BLIMP-lite rankings over a common design sample;
+    \item independent validation of geometry continuity, boundary-layer quantities and
+    thrust loss against published experiments or mesh-refined RANS/CFD;
+    \item trajectory-weighted or multi-point optimization across ambient pressure;
+    \item thermal and structural constraints for manufacturable designs;
+    \item optional MOC analysis of selected parametric contours as a validation layer,
+    without replacing the present geometry family;
+    \item comparison between conical, Rao TOP and optimized parametric bell contours.
+\end{enumerate}
+
+The lack of a separate empirical turning penalty is deliberate. Rapid turning is
+currently controlled through geometric admissibility and bounded values of
+\(\theta_{in}\), while its multidimensional wave consequences remain outside the
+validity of the quasi-one-dimensional closure. Such effects should be introduced only
+through a defensible MOC, CFD or experimental analysis rather than an uncalibrated
+coefficient.
