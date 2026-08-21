@@ -8,24 +8,49 @@ A desktop engineering tool for designing and inspecting axisymmetric bell nozzle
 It combines the original Porto Space Team nozzle geometry with RocketCEA properties,
 quasi-1D flow profiles, an adiabatic BLIMP-inspired/Cebeci-Smith boundary-layer
 solver and interactive 2D/3D visualization.
+
 ## Interface and Results
 
 <p align="center">
-  <img src="docs/images/2D_int.png" width="800">
+  <img src="docs/images/int_2D.png" width="800">
   <br>
-  <em>Two-dimensional nozzle geometry and flow-domain visualization.</em>
+  <sub><b>Figure 1 —</b> Two-dimensional nozzle geometry and flow-domain visualization.</sub>
 </p>
 
 <p align="center">
-  <img src="docs/images/3D_int.png" width="800">
+  <img src="docs/images/int_3D.png" width="800">
   <br>
-  <em>Three-dimensional visualization of the generated nozzle contour.</em>
+  <sub><b>Figure 2 —</b> Three-dimensional visualization of the generated nozzle contour.</sub>
 </p>
 
 <p align="center">
-  <img src="docs/images/MOC.png" width="800">
+  <img src="docs/images/int_BL.png" width="800">
   <br>
-  <em>Method of Characteristics solution and resulting supersonic flow field.</em>
+  <sub><b>Figure 3 —</b> Boundary-layer analysis interface and resulting flow quantities.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/int_GA.png" width="800">
+  <br>
+  <sub><b>Figure 4 —</b> Genetic-algorithm optimization interface and convergence results.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/int_Losses.png" width="800">
+  <br>
+  <sub><b>Figure 5 —</b> Nozzle performance-loss analysis and associated contributions.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/int_MOC.png" width="800">
+  <br>
+  <sub><b>Figure 6 —</b> Method of Characteristics solution and supersonic flow-field visualization.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/int_Thermal.png" width="800">
+  <br>
+  <sub><b>Figure 7 —</b> Thermal analysis interface and nozzle wall heat-transfer results.</sub>
 </p>
 
 ## Highlights
