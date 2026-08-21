@@ -9,7 +9,8 @@ It combines the original Porto Space Team nozzle geometry with RocketCEA propert
 quasi-1D flow profiles, an adiabatic BLIMP-inspired/Cebeci-Smith boundary-layer
 solver and interactive 2D/3D visualization.
 
-![2D nozzle contour](docs/images/2Dplot.png)
+![2D nozzle contour](docs/images/2D_int.png)
+![3D nozzle contour](docs/images/3D_int.png)
 
 ## Highlights
 
