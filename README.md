@@ -8,9 +8,25 @@ A desktop engineering tool for designing and inspecting axisymmetric bell nozzle
 It combines the original Porto Space Team nozzle geometry with RocketCEA properties,
 quasi-1D flow profiles, an adiabatic BLIMP-inspired/Cebeci-Smith boundary-layer
 solver and interactive 2D/3D visualization.
+## Interface and Results
 
-![2D nozzle contour](docs/images/2D_int.png)
-![3D nozzle contour](docs/images/3D_int.png)
+<p align="center">
+  <img src="docs/images/2D_int.png" width="800">
+  <br>
+  <em>Two-dimensional nozzle geometry and flow-domain visualization.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/3D_int.png" width="800">
+  <br>
+  <em>Three-dimensional visualization of the generated nozzle contour.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/MOC.png" width="800">
+  <br>
+  <em>Method of Characteristics solution and resulting supersonic flow field.</em>
+</p>
 
 ## Highlights
 
